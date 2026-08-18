@@ -1,6 +1,6 @@
 --========================================================--
---                         MK HUB                         --
---              DRAGGABLE + SLIDER + INPUT               --
+--                    MK HUB v2.0                         --
+--                 FOX ANIME EDITION                      --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -34,25 +34,31 @@ local Character
 local Humanoid
 local Root
 
-local function LoadCharacter(char)
-	Character = char
-	Humanoid = char:WaitForChild("Humanoid")
-	Root = char:WaitForChild("HumanoidRootPart")
+local function LoadCharacter(Char)
+
+	Character = Char
+	Humanoid = Char:WaitForChild("Humanoid")
+	Root = Char:WaitForChild("HumanoidRootPart")
 
 	Humanoid.UseJumpPower = true
+
 end
 
 if Player.Character then
 	LoadCharacter(Player.Character)
 end
 
-Player.CharacterAdded:Connect(function(char)
-	LoadCharacter(char)
+Player.CharacterAdded:Connect(function(Char)
+
+	LoadCharacter(Char)
 
 	task.wait(0.2)
 
-	Humanoid.WalkSpeed = 16
-	Humanoid.JumpPower = 50
+	if Humanoid then
+		Humanoid.WalkSpeed = 16
+		Humanoid.JumpPower = 50
+	end
+
 end)
 
 --========================================================--
@@ -63,10 +69,314 @@ local SpeedEnabled = false
 local JumpEnabled = false
 local FlyEnabled = false
 local NoClipEnabled = false
+local ESPEnabled = false
 
 local FlyVelocity
 local FlyConnection
 local NoClipConnection
+
+--========================================================--
+-- ESP
+--========================================================--
+
+local ESPObjects = {}
+local ESPConnection
+
+local function RemoveESP(PlayerObject)
+
+	local Data = ESPObjects[PlayerObject]
+
+	if not Data then
+		return
+	end
+
+	if Data.Highlight then
+		Data.Highlight:Destroy()
+	end
+
+	if Data.Billboard then
+		Data.Billboard:Destroy()
+	end
+
+	ESPObjects[PlayerObject] = nil
+
+end
+
+local function CreateESP(PlayerObject)
+
+	if PlayerObject == Player then
+		return
+	end
+
+	if not ESPEnabled then
+		return
+	end
+
+	local CharacterObject = PlayerObject.Character
+
+	if not CharacterObject then
+		return
+	end
+
+	local Head = CharacterObject:FindFirstChild("Head")
+
+	if not Head then
+		return
+	end
+
+	RemoveESP(PlayerObject)
+
+	--====================================================--
+	-- HIGHLIGHT
+	--====================================================--
+
+	local Highlight = Instance.new("Highlight")
+
+	Highlight.Name = "MK_ESP_Highlight"
+	Highlight.Adornee = CharacterObject
+
+	Highlight.FillColor =
+		Color3.fromRGB(178, 105, 255)
+
+	Highlight.OutlineColor =
+		Color3.fromRGB(255, 255, 255)
+
+	Highlight.FillTransparency = 0.65
+	Highlight.OutlineTransparency = 0
+
+	Highlight.DepthMode =
+		Enum.HighlightDepthMode.AlwaysOnTop
+
+	Highlight.Parent = CharacterObject
+
+	--====================================================--
+	-- NAME TAG
+	--====================================================--
+
+	local Billboard = Instance.new("BillboardGui")
+
+	Billboard.Name = "MK_ESP_Name"
+	Billboard.Adornee = Head
+
+	Billboard.Size =
+		UDim2.fromOffset(180, 45)
+
+	Billboard.StudsOffset =
+		Vector3.new(0, 2.8, 0)
+
+	Billboard.AlwaysOnTop = true
+
+	Billboard.MaxDistance = 500
+
+	Billboard.Parent = Head
+
+	local NameLabel = Instance.new("TextLabel")
+
+	NameLabel.Size =
+		UDim2.fromScale(1, 0.55)
+
+	NameLabel.BackgroundTransparency = 1
+
+	NameLabel.Text =
+		PlayerObject.DisplayName
+
+	NameLabel.TextColor3 =
+		Color3.fromRGB(255, 255, 255)
+
+	NameLabel.TextStrokeTransparency = 0
+
+	NameLabel.TextStrokeColor3 =
+		Color3.fromRGB(0, 0, 0)
+
+	NameLabel.TextSize = 13
+
+	NameLabel.Font =
+		Enum.Font.GothamBold
+
+	NameLabel.Parent = Billboard
+
+	local DistanceLabel = Instance.new("TextLabel")
+
+	DistanceLabel.Size =
+		UDim2.fromScale(1, 0.45)
+
+	DistanceLabel.Position =
+		UDim2.fromScale(0, 0.55)
+
+	DistanceLabel.BackgroundTransparency = 1
+
+	DistanceLabel.Text =
+		"0 studs"
+
+	DistanceLabel.TextColor3 =
+		Color3.fromRGB(190, 190, 210)
+
+	DistanceLabel.TextStrokeTransparency = 0
+
+	DistanceLabel.TextStrokeColor3 =
+		Color3.fromRGB(0, 0, 0)
+
+	DistanceLabel.TextSize = 10
+
+	DistanceLabel.Font =
+		Enum.Font.Gotham
+
+	DistanceLabel.Parent = Billboard
+
+	ESPObjects[PlayerObject] = {
+		Highlight = Highlight,
+		Billboard = Billboard,
+		Distance = DistanceLabel
+	}
+
+end
+
+local function UpdateESP()
+
+	if not ESPEnabled then
+		return
+	end
+
+	if not Root then
+		return
+	end
+
+	for _, OtherPlayer in ipairs(Players:GetPlayers()) do
+
+		if OtherPlayer ~= Player then
+
+			local Data = ESPObjects[OtherPlayer]
+			local OtherCharacter = OtherPlayer.Character
+			local OtherRoot =
+				OtherCharacter and
+				OtherCharacter:FindFirstChild(
+					"HumanoidRootPart"
+				)
+
+			if not Data or not Data.Billboard then
+
+				CreateESP(OtherPlayer)
+
+				Data =
+					ESPObjects[OtherPlayer]
+
+			end
+
+			if Data and OtherRoot then
+
+				local Distance =
+					(Root.Position -
+						OtherRoot.Position).Magnitude
+
+				if Data.Distance then
+
+					Data.Distance.Text =
+						math.floor(Distance) ..
+						" studs"
+
+				end
+
+			end
+
+		end
+
+	end
+
+end
+
+local function StopESP()
+
+	ESPEnabled = false
+
+	if ESPConnection then
+
+		ESPConnection:Disconnect()
+		ESPConnection = nil
+
+	end
+
+	for OtherPlayer in pairs(ESPObjects) do
+		RemoveESP(OtherPlayer)
+	end
+
+	table.clear(ESPObjects)
+
+end
+
+local function StartESP()
+
+	if ESPEnabled then
+		return
+	end
+
+	ESPEnabled = true
+
+	for _, OtherPlayer in ipairs(Players:GetPlayers()) do
+
+		if OtherPlayer ~= Player then
+			CreateESP(OtherPlayer)
+		end
+
+	end
+
+	ESPConnection =
+		RunService.RenderStepped:Connect(
+			UpdateESP
+		)
+
+end
+
+Players.PlayerAdded:Connect(function(OtherPlayer)
+
+	OtherPlayer.CharacterAdded:Connect(function()
+
+		if ESPEnabled then
+
+			task.wait(0.3)
+
+			CreateESP(OtherPlayer)
+
+		end
+
+	end)
+
+end)
+
+Players.PlayerRemoving:Connect(function(OtherPlayer)
+
+	RemoveESP(OtherPlayer)
+
+end)
+
+--========================================================--
+-- COLORS
+--========================================================--
+
+local C = {
+
+	Background = Color3.fromRGB(7, 8, 13),
+
+	Panel = Color3.fromRGB(14, 15, 22),
+
+	Panel2 = Color3.fromRGB(21, 22, 31),
+
+	Button = Color3.fromRGB(27, 28, 38),
+
+	ButtonHover = Color3.fromRGB(43, 43, 58),
+
+	White = Color3.fromRGB(245, 245, 255),
+
+	Gray = Color3.fromRGB(150, 152, 170),
+
+	Purple = Color3.fromRGB(178, 105, 255),
+
+	Blue = Color3.fromRGB(100, 160, 255),
+
+	Pink = Color3.fromRGB(255, 125, 205),
+
+	Stroke = Color3.fromRGB(70, 70, 92)
+
+}
 
 --========================================================--
 -- GUI
@@ -74,257 +384,568 @@ local NoClipConnection
 
 local Gui = Instance.new("ScreenGui")
 
-Gui.Name = "MK_HUB"
+Gui.Name = "MK_HUB_v2"
+
 Gui.ResetOnSpawn = false
 Gui.IgnoreGuiInset = true
 Gui.DisplayOrder = 999
 
-Gui.Parent = Player:WaitForChild("PlayerGui")
+Gui.Parent =
+	Player:WaitForChild("PlayerGui")
 
 --========================================================--
--- DRAG SYSTEM
+-- UTILITY
 --========================================================--
 
-local function MakeDraggable(Object, Handle)
+local function Corner(Object, Radius)
+
+	local CornerObject =
+		Instance.new("UICorner")
+
+	CornerObject.CornerRadius =
+		UDim.new(0, Radius)
+
+	CornerObject.Parent = Object
+
+	return CornerObject
+
+end
+
+local function AddStroke(
+	Object,
+	Color,
+	Thickness,
+	Transparency
+)
+
+	local S =
+		Instance.new("UIStroke")
+
+	S.Color =
+		Color or C.Stroke
+
+	S.Thickness =
+		Thickness or 1
+
+	S.Transparency =
+		Transparency or 0
+
+	S.Parent = Object
+
+	return S
+
+end
+
+local function MakeTween(
+	Object,
+	Time,
+	Properties,
+	Style
+)
+
+	return TweenService:Create(
+
+		Object,
+
+		TweenInfo.new(
+
+			Time,
+
+			Style or
+				Enum.EasingStyle.Quart,
+
+			Enum.EasingDirection.Out
+
+		),
+
+		Properties
+
+	)
+
+end
+
+--========================================================--
+-- DRAG
+--========================================================--
+
+local function MakeDraggable(
+	Object,
+	Handle
+)
 
 	local Dragging = false
 	local DragStart
 	local StartPosition
 
-	Handle.InputBegan:Connect(function(input)
+	Handle.InputBegan:Connect(function(Input)
 
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if Input.UserInputType ==
+			Enum.UserInputType.MouseButton1 then
 
 			Dragging = true
 
-			DragStart = input.Position
-			StartPosition = Object.Position
+			DragStart =
+				Input.Position
+
+			StartPosition =
+				Object.Position
 
 		end
 
 	end)
 
-	Handle.InputEnded:Connect(function(input)
+	Handle.InputEnded:Connect(function(Input)
 
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if Input.UserInputType ==
+			Enum.UserInputType.MouseButton1 then
+
 			Dragging = false
+
 		end
 
 	end)
 
-	UIS.InputChanged:Connect(function(input)
+	UIS.InputChanged:Connect(function(Input)
 
 		if not Dragging then
 			return
 		end
 
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement then
+		if Input.UserInputType ~=
+			Enum.UserInputType.MouseMovement then
 			return
 		end
 
-		local Delta = input.Position - DragStart
+		local Delta =
+			Input.Position -
+			DragStart
 
-		Object.Position = UDim2.new(
-			StartPosition.X.Scale,
-			StartPosition.X.Offset + Delta.X,
-			StartPosition.Y.Scale,
-			StartPosition.Y.Offset + Delta.Y
-		)
+		Object.Position =
+			UDim2.new(
+
+				StartPosition.X.Scale,
+
+				StartPosition.X.Offset +
+				Delta.X,
+
+				StartPosition.Y.Scale,
+
+				StartPosition.Y.Offset +
+				Delta.Y
+
+			)
 
 	end)
 
 end
 
 --========================================================--
--- LOADING SCREEN
+-- FOX
 --========================================================--
 
-local Loading = Instance.new("Frame")
+local function CreateFox(
+	Parent,
+	Position,
+	Size,
+	ZIndex
+)
 
-Loading.Size = UDim2.fromScale(1, 1)
-Loading.BackgroundColor3 = Color3.fromRGB(7, 8, 12)
+	local Fox =
+		Instance.new("TextLabel")
+
+	Fox.Size =
+		UDim2.fromOffset(
+			Size,
+			Size
+		)
+
+	Fox.Position =
+		Position
+
+	Fox.BackgroundTransparency = 1
+
+	Fox.Text = "🦊"
+
+	Fox.TextSize =
+		math.floor(Size * 0.72)
+
+	Fox.Font =
+		Enum.Font.GothamBlack
+
+	Fox.TextColor3 =
+		Color3.fromRGB(
+			255,
+			255,
+			255
+		)
+
+	Fox.ZIndex =
+		ZIndex or 10
+
+	Fox.Parent =
+		Parent
+
+	return Fox
+
+end
+
+--========================================================--
+-- LOADING
+--========================================================--
+
+local Loading =
+	Instance.new("Frame")
+
+Loading.Size =
+	UDim2.fromScale(1, 1)
+
+Loading.BackgroundColor3 =
+	C.Background
+
 Loading.BorderSizePixel = 0
 Loading.ZIndex = 1000
 Loading.Parent = Gui
 
-local LoadingGradient = Instance.new("UIGradient")
+local LoadingGradient =
+	Instance.new("UIGradient")
 
-LoadingGradient.Rotation = 45
+LoadingGradient.Rotation = 35
 
-LoadingGradient.Color = ColorSequence.new({
+LoadingGradient.Color =
+	ColorSequence.new({
 
-	ColorSequenceKeypoint.new(
-		0,
-		Color3.fromRGB(7, 9, 16)
-	),
+		ColorSequenceKeypoint.new(
+			0,
+			Color3.fromRGB(7, 8, 15)
+		),
 
-	ColorSequenceKeypoint.new(
-		0.5,
-		Color3.fromRGB(25, 18, 38)
-	),
+		ColorSequenceKeypoint.new(
+			0.5,
+			Color3.fromRGB(34, 19, 50)
+		),
 
-	ColorSequenceKeypoint.new(
-		1,
-		Color3.fromRGB(6, 8, 13)
+		ColorSequenceKeypoint.new(
+			1,
+			Color3.fromRGB(7, 9, 16)
+		)
+
+	})
+
+LoadingGradient.Parent =
+	Loading
+
+--========================================================--
+-- LOADING FOXES
+--========================================================--
+
+local LoadingFoxes = {}
+
+local FoxPositions = {
+
+	UDim2.new(0, 60, 0.5, -40),
+
+	UDim2.new(1, -120, 0.5, -80),
+
+	UDim2.new(0.18, 0, 0, 90),
+
+	UDim2.new(0.78, 0, 0, 75),
+
+	UDim2.new(0.10, 0, 1, -150),
+
+	UDim2.new(0.82, 0, 1, -160)
+
+}
+
+for _, Position in ipairs(FoxPositions) do
+
+	local Fox =
+		CreateFox(
+			Loading,
+			Position,
+			65,
+			1001
+		)
+
+	Fox.TextTransparency = 0.15
+
+	table.insert(
+		LoadingFoxes,
+		Fox
 	)
 
-})
+end
 
-LoadingGradient.Parent = Loading
+task.spawn(function()
+
+	local Offset = 0
+
+	while Loading.Parent do
+
+		Offset += task.wait(0.03)
+
+		for Index, Fox in ipairs(LoadingFoxes) do
+
+			local Base =
+				FoxPositions[Index]
+
+			local Y =
+				math.sin(
+					Offset * 2 +
+					Index
+				) * 8
+
+			Fox.Position =
+				UDim2.new(
+
+					Base.X.Scale,
+					Base.X.Offset,
+
+					Base.Y.Scale,
+					Base.Y.Offset + Y
+
+				)
+
+		end
+
+	end
+
+end)
 
 --========================================================--
--- LOADING CONTENT
+-- LOADING CARD
 --========================================================--
 
-local LoadingBox = Instance.new("Frame")
+local LoadingCard =
+	Instance.new("Frame")
 
-LoadingBox.Size = UDim2.fromOffset(430, 280)
-LoadingBox.AnchorPoint = Vector2.new(0.5, 0.5)
-LoadingBox.Position = UDim2.fromScale(0.5, 0.5)
-LoadingBox.BackgroundTransparency = 1
-LoadingBox.ZIndex = 1001
-LoadingBox.Parent = Loading
+LoadingCard.Size =
+	UDim2.fromOffset(440, 260)
 
-local Logo = Instance.new("TextLabel")
+LoadingCard.AnchorPoint =
+	Vector2.new(0.5, 0.5)
 
-Logo.Size = UDim2.new(1, 0, 0, 80)
-Logo.Position = UDim2.fromOffset(0, 20)
-Logo.BackgroundTransparency = 1
-Logo.Text = "MK"
-Logo.TextColor3 = Color3.fromRGB(255, 255, 255)
-Logo.TextSize = 60
-Logo.Font = Enum.Font.GothamBlack
-Logo.ZIndex = 1002
-Logo.Parent = LoadingBox
+LoadingCard.Position =
+	UDim2.fromScale(0.5, 0.5)
 
-local Name = Instance.new("TextLabel")
+LoadingCard.BackgroundColor3 =
+	Color3.fromRGB(13, 14, 21)
 
-Name.Size = UDim2.new(1, 0, 0, 30)
-Name.Position = UDim2.fromOffset(0, 95)
-Name.BackgroundTransparency = 1
-Name.Text = "MK HUB"
-Name.TextColor3 = Color3.fromRGB(180, 185, 200)
-Name.TextSize = 18
-Name.Font = Enum.Font.GothamBold
-Name.ZIndex = 1002
-Name.Parent = LoadingBox
+LoadingCard.BackgroundTransparency = 0.03
 
-local Status = Instance.new("TextLabel")
+LoadingCard.BorderSizePixel = 0
+LoadingCard.ZIndex = 1010
+LoadingCard.Parent = Loading
 
-Status.Size = UDim2.new(1, 0, 0, 25)
-Status.Position = UDim2.fromOffset(0, 135)
-Status.BackgroundTransparency = 1
-Status.Text = "Loading..."
-Status.TextColor3 = Color3.fromRGB(130, 135, 150)
-Status.TextSize = 12
-Status.Font = Enum.Font.Gotham
-Status.ZIndex = 1002
-Status.Parent = LoadingBox
+Corner(LoadingCard, 22)
 
-local ProgressBack = Instance.new("Frame")
+AddStroke(
+	LoadingCard,
+	Color3.fromRGB(130, 90, 180),
+	1,
+	0.2
+)
 
-ProgressBack.Size = UDim2.fromOffset(330, 8)
-ProgressBack.Position = UDim2.new(0.5, -165, 0, 175)
-ProgressBack.BackgroundColor3 = Color3.fromRGB(38, 40, 48)
+--========================================================--
+-- LOADING TITLE
+--========================================================--
+
+local LoadingTitle =
+	Instance.new("TextLabel")
+
+LoadingTitle.Size =
+	UDim2.new(1, 0, 0, 65)
+
+LoadingTitle.Position =
+	UDim2.fromOffset(0, 42)
+
+LoadingTitle.BackgroundTransparency = 1
+
+LoadingTitle.Text =
+	"MK HUB v2.0"
+
+LoadingTitle.TextColor3 =
+	C.White
+
+LoadingTitle.TextSize = 38
+
+LoadingTitle.Font =
+	Enum.Font.GothamBlack
+
+LoadingTitle.ZIndex = 1012
+LoadingTitle.Parent = LoadingCard
+
+local TitleGradient =
+	Instance.new("UIGradient")
+
+TitleGradient.Color =
+	ColorSequence.new({
+
+		ColorSequenceKeypoint.new(
+			0,
+			C.Purple
+		),
+
+		ColorSequenceKeypoint.new(
+			0.5,
+			C.White
+		),
+
+		ColorSequenceKeypoint.new(
+			1,
+			C.Blue
+		)
+
+	})
+
+TitleGradient.Parent =
+	LoadingTitle
+
+--========================================================--
+-- LOADING STATUS
+--========================================================--
+
+local LoadingStatus =
+	Instance.new("TextLabel")
+
+LoadingStatus.Size =
+	UDim2.new(1, 0, 0, 25)
+
+LoadingStatus.Position =
+	UDim2.fromOffset(0, 103)
+
+LoadingStatus.BackgroundTransparency = 1
+
+LoadingStatus.Text = "Loading..."
+
+LoadingStatus.TextColor3 =
+	C.Gray
+
+LoadingStatus.TextSize = 12
+
+LoadingStatus.Font =
+	Enum.Font.Gotham
+
+LoadingStatus.ZIndex = 1012
+LoadingStatus.Parent = LoadingCard
+
+--========================================================--
+-- PROGRESS
+--========================================================--
+
+local ProgressBack =
+	Instance.new("Frame")
+
+ProgressBack.Size =
+	UDim2.fromOffset(330, 8)
+
+ProgressBack.Position =
+	UDim2.new(0.5, -165, 0, 145)
+
+ProgressBack.BackgroundColor3 =
+	Color3.fromRGB(37, 38, 48)
+
 ProgressBack.BorderSizePixel = 0
-ProgressBack.ZIndex = 1002
-ProgressBack.Parent = LoadingBox
+ProgressBack.ZIndex = 1012
+ProgressBack.Parent = LoadingCard
 
-local ProgressBackCorner = Instance.new("UICorner")
+Corner(ProgressBack, 10)
 
-ProgressBackCorner.CornerRadius = UDim.new(1, 0)
-ProgressBackCorner.Parent = ProgressBack
+local Progress =
+	Instance.new("Frame")
 
-local Progress = Instance.new("Frame")
+Progress.Size =
+	UDim2.new(0, 0, 1, 0)
 
-Progress.Size = UDim2.new(0, 0, 1, 0)
-Progress.BackgroundColor3 = Color3.fromRGB(120, 185, 255)
+Progress.BackgroundColor3 =
+	C.Purple
+
 Progress.BorderSizePixel = 0
-Progress.ZIndex = 1003
+Progress.ZIndex = 1013
 Progress.Parent = ProgressBack
 
-local ProgressCorner = Instance.new("UICorner")
+Corner(Progress, 10)
 
-ProgressCorner.CornerRadius = UDim.new(1, 0)
-ProgressCorner.Parent = Progress
+local ProgressGradient =
+	Instance.new("UIGradient")
 
-local Percent = Instance.new("TextLabel")
+ProgressGradient.Color =
+	ColorSequence.new({
 
-Percent.Size = UDim2.new(1, 0, 0, 25)
-Percent.Position = UDim2.fromOffset(0, 195)
-Percent.BackgroundTransparency = 1
-Percent.Text = "0%"
-Percent.TextColor3 = Color3.fromRGB(220, 225, 235)
-Percent.TextSize = 11
-Percent.Font = Enum.Font.GothamBold
-Percent.ZIndex = 1002
-Percent.Parent = LoadingBox
+		ColorSequenceKeypoint.new(
+			0,
+			C.Blue
+		),
+
+		ColorSequenceKeypoint.new(
+			0.5,
+			C.Purple
+		),
+
+		ColorSequenceKeypoint.new(
+			1,
+			C.Pink
+		)
+
+	})
+
+ProgressGradient.Parent =
+	Progress
 
 --========================================================--
--- LOADING
+-- LOADING 5 SECOND
 --========================================================--
 
 task.spawn(function()
 
 	local Steps = {
 
-		{0.15, "Starting MK HUB..."},
-		{0.30, "Loading interface..."},
-		{0.50, "Loading controls..."},
-		{0.70, "Loading sliders..."},
-		{0.88, "Preparing hub..."},
-		{1.00, "Ready."}
+		0.12,
+		0.25,
+		0.40,
+		0.58,
+		0.75,
+		0.90,
+		1
 
 	}
 
-	local oldPercent = 0
+	for _, Target in ipairs(Steps) do
 
-	for _, Step in ipairs(Steps) do
+		LoadingStatus.Text =
+			"Loading..."
 
-		local Target = Step[1]
+		MakeTween(
 
-		Status.Text = Step[2]
-
-		TweenService:Create(
 			Progress,
-			TweenInfo.new(
-				0.4,
-				Enum.EasingStyle.Quart,
-				Enum.EasingDirection.Out
-			),
+			0.5,
+
 			{
-				Size = UDim2.new(
-					Target,
-					0,
-					1,
-					0
-				)
+				Size =
+					UDim2.new(
+						Target,
+						0,
+						1,
+						0
+					)
 			}
+
 		):Play()
 
-		for i = oldPercent, math.floor(Target * 100) do
-
-			Percent.Text = tostring(i) .. "%"
-
-			task.wait(0.01)
-
-		end
-
-		oldPercent = math.floor(Target * 100)
-
-		task.wait(0.12)
+		task.wait(0.65)
 
 	end
 
-	task.wait(0.4)
+	task.wait(0.35)
 
-	for _, Object in ipairs(Loading:GetDescendants()) do
+	for _, Object in ipairs(
+		LoadingCard:GetDescendants()
+		) do
 
 		if Object:IsA("TextLabel") then
 
-			TweenService:Create(
+			MakeTween(
 				Object,
-				TweenInfo.new(0.4),
+				0.3,
 				{
 					TextTransparency = 1
 				}
@@ -334,9 +955,29 @@ task.spawn(function()
 
 	end
 
-	TweenService:Create(
+	MakeTween(
+		LoadingCard,
+		0.4,
+		{
+			BackgroundTransparency = 1
+		}
+	):Play()
+
+	for _, Fox in ipairs(LoadingFoxes) do
+
+		MakeTween(
+			Fox,
+			0.4,
+			{
+				TextTransparency = 1
+			}
+		):Play()
+
+	end
+
+	MakeTween(
 		Loading,
-		TweenInfo.new(0.5),
+		0.5,
 		{
 			BackgroundTransparency = 1
 		}
@@ -349,39 +990,45 @@ task.spawn(function()
 end)
 
 --========================================================--
--- ROUND MK BUTTON
+-- HUB BUTTON
 --========================================================--
 
-local HubButton = Instance.new("TextButton")
+local HubButton =
+	Instance.new("TextButton")
 
-HubButton.Size = UDim2.fromOffset(62, 62)
+HubButton.Size =
+	UDim2.fromOffset(64, 64)
 
-HubButton.Position = UDim2.new(
-	0,
-	20,
-	0.5,
-	-31
-)
+HubButton.Position =
+	UDim2.new(0, 20, 0.5, -32)
 
-HubButton.BackgroundColor3 = Color3.fromRGB(20, 21, 27)
+HubButton.BackgroundColor3 =
+	C.Panel2
+
 HubButton.BorderSizePixel = 0
+
 HubButton.Text = "MK"
-HubButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+HubButton.TextColor3 =
+	C.White
+
 HubButton.TextSize = 16
-HubButton.Font = Enum.Font.GothamBlack
+
+HubButton.Font =
+	Enum.Font.GothamBlack
+
 HubButton.Visible = false
+
 HubButton.Parent = Gui
 
-local HubCorner = Instance.new("UICorner")
+Corner(HubButton, 32)
 
-HubCorner.CornerRadius = UDim.new(1, 0)
-HubCorner.Parent = HubButton
-
-local HubStroke = Instance.new("UIStroke")
-
-HubStroke.Thickness = 2
-HubStroke.Color = Color3.fromRGB(100, 150, 220)
-HubStroke.Parent = HubButton
+AddStroke(
+	HubButton,
+	C.Purple,
+	2,
+	0.1
+)
 
 MakeDraggable(
 	HubButton,
@@ -392,48 +1039,159 @@ MakeDraggable(
 -- MAIN MENU
 --========================================================--
 
-local Main = Instance.new("Frame")
+local Main =
+	Instance.new("Frame")
 
-Main.Size = UDim2.fromOffset(340, 460)
+Main.Size =
+	UDim2.fromOffset(400, 510)
 
-Main.Position = UDim2.new(
-	0.5,
-	-170,
-	0.5,
-	-230
-)
+Main.Position =
+	UDim2.new(
+		0.5,
+		-200,
+		0.5,
+		-255
+	)
 
-Main.BackgroundColor3 = Color3.fromRGB(14, 15, 20)
+Main.BackgroundColor3 =
+	C.Panel
+
 Main.BorderSizePixel = 0
 Main.Visible = false
+Main.ClipsDescendants = true
 Main.Parent = Gui
 
-local MainCorner = Instance.new("UICorner")
+Corner(Main, 22)
 
-MainCorner.CornerRadius = UDim.new(0, 16)
-MainCorner.Parent = Main
-
-local MainStroke = Instance.new("UIStroke")
-
-MainStroke.Thickness = 1
-MainStroke.Color = Color3.fromRGB(65, 70, 82)
-MainStroke.Parent = Main
+AddStroke(
+	Main,
+	Color3.fromRGB(90, 78, 120),
+	1,
+	0.1
+)
 
 --========================================================--
--- HEADER / DRAG HANDLE
+-- TOP GLOW
 --========================================================--
 
-local Header = Instance.new("TextButton")
+local MenuGlow =
+	Instance.new("Frame")
 
-Header.Size = UDim2.new(1, -20, 0, 50)
-Header.Position = UDim2.fromOffset(10, 5)
+MenuGlow.Size =
+	UDim2.new(1, 0, 0, 120)
+
+MenuGlow.BackgroundColor3 =
+	Color3.fromRGB(36, 23, 52)
+
+MenuGlow.BackgroundTransparency = 0.25
+
+MenuGlow.BorderSizePixel = 0
+MenuGlow.Parent = Main
+
+Corner(MenuGlow, 22)
+
+local MenuGlowGradient =
+	Instance.new("UIGradient")
+
+MenuGlowGradient.Rotation = 90
+
+MenuGlowGradient.Transparency =
+	NumberSequence.new({
+
+		NumberSequenceKeypoint.new(0, 0),
+
+		NumberSequenceKeypoint.new(1, 1)
+
+	})
+
+MenuGlowGradient.Parent =
+	MenuGlow
+
+--========================================================--
+-- FOX
+--========================================================--
+
+local MenuFox =
+	CreateFox(
+		Main,
+		UDim2.new(1, -95, 0, 8),
+		75,
+		20
+	)
+
+MenuFox.TextSize = 54
+
+task.spawn(function()
+
+	while MenuFox.Parent do
+
+		MakeTween(
+			MenuFox,
+			0.9,
+			{
+				Position =
+					UDim2.new(
+						1,
+						-95,
+						0,
+						2
+					)
+			}
+		):Play()
+
+		task.wait(0.9)
+
+		MakeTween(
+			MenuFox,
+			0.9,
+			{
+				Position =
+					UDim2.new(
+						1,
+						-95,
+						0,
+						8
+					)
+			}
+		):Play()
+
+		task.wait(0.9)
+
+	end
+
+end)
+
+--========================================================--
+-- HEADER
+--========================================================--
+
+local Header =
+	Instance.new("TextButton")
+
+Header.Size =
+	UDim2.new(1, -115, 0, 55)
+
+Header.Position =
+	UDim2.fromOffset(16, 10)
+
 Header.BackgroundTransparency = 1
-Header.Text = "MK HUB"
-Header.TextColor3 = Color3.fromRGB(255, 255, 255)
-Header.TextSize = 18
-Header.Font = Enum.Font.GothamBold
-Header.TextXAlignment = Enum.TextXAlignment.Left
+
+Header.Text =
+	"MK HUB v2.0"
+
+Header.TextColor3 =
+	C.White
+
+Header.TextSize = 20
+
+Header.Font =
+	Enum.Font.GothamBlack
+
+Header.TextXAlignment =
+	Enum.TextXAlignment.Left
+
 Header.AutoButtonColor = false
+
 Header.Parent = Main
 
 MakeDraggable(
@@ -442,58 +1200,245 @@ MakeDraggable(
 )
 
 --========================================================--
+-- TAB BAR
+--========================================================--
+
+local TabBar =
+	Instance.new("Frame")
+
+TabBar.Size =
+	UDim2.new(1, -30, 0, 42)
+
+TabBar.Position =
+	UDim2.fromOffset(15, 72)
+
+TabBar.BackgroundTransparency = 1
+TabBar.Parent = Main
+
+--========================================================--
+-- TAB 1
+--========================================================--
+
+local Tab1 =
+	Instance.new("TextButton")
+
+Tab1.Size =
+	UDim2.new(0.5, -5, 1, 0)
+
+Tab1.BackgroundColor3 =
+	Color3.fromRGB(68, 48, 98)
+
+Tab1.BorderSizePixel = 0
+
+Tab1.Text =
+	"MAIN"
+
+Tab1.TextColor3 =
+	C.White
+
+Tab1.TextSize = 11
+
+Tab1.Font =
+	Enum.Font.GothamBold
+
+Tab1.AutoButtonColor = false
+
+Tab1.Parent = TabBar
+
+Corner(Tab1, 10)
+
+--========================================================--
+-- TAB 2 FARM
+--========================================================--
+
+local Tab2 =
+	Instance.new("TextButton")
+
+Tab2.Size =
+	UDim2.new(0.5, -5, 1, 0)
+
+Tab2.Position =
+	UDim2.new(0.5, 5, 0, 0)
+
+Tab2.BackgroundColor3 =
+	C.Button
+
+Tab2.BorderSizePixel = 0
+
+Tab2.Text =
+	"FARM"
+
+Tab2.TextColor3 =
+	C.White
+
+Tab2.TextSize = 11
+
+Tab2.Font =
+	Enum.Font.GothamBold
+
+Tab2.AutoButtonColor = false
+
+Tab2.Parent = TabBar
+
+Corner(Tab2, 10)
+
+--========================================================--
+-- PAGES
+--========================================================--
+
+local MainPage =
+	Instance.new("Frame")
+
+MainPage.Size =
+	UDim2.new(1, 0, 1, -125)
+
+MainPage.Position =
+	UDim2.fromOffset(0, 125)
+
+MainPage.BackgroundTransparency = 1
+MainPage.Parent = Main
+
+local FarmPage =
+	Instance.new("Frame")
+
+FarmPage.Size =
+	UDim2.new(1, 0, 1, -125)
+
+FarmPage.Position =
+	UDim2.fromOffset(0, 125)
+
+FarmPage.BackgroundTransparency = 1
+FarmPage.Visible = false
+
+FarmPage.Parent = Main
+
+--========================================================--
 -- FEATURE BUTTON
 --========================================================--
 
-local function FeatureButton(Text, X, Y)
+local function FeatureButton(
+	Text,
+	X,
+	Y,
+	Parent
+)
 
-	local Button = Instance.new("TextButton")
+	local Button =
+		Instance.new("TextButton")
 
-	Button.Size = UDim2.fromOffset(150, 38)
-	Button.Position = UDim2.fromOffset(X, Y)
-	Button.BackgroundColor3 = Color3.fromRGB(30, 31, 38)
+	Button.Size =
+		UDim2.fromOffset(175, 40)
+
+	Button.Position =
+		UDim2.fromOffset(X, Y)
+
+	Button.BackgroundColor3 =
+		C.Button
+
 	Button.BorderSizePixel = 0
-	Button.Text = Text
-	Button.TextColor3 = Color3.fromRGB(235, 235, 240)
-	Button.TextSize = 11
-	Button.Font = Enum.Font.GothamBold
-	Button.Parent = Main
 
-	local Corner = Instance.new("UICorner")
+	Button.Text =
+		Text
 
-	Corner.CornerRadius = UDim.new(0, 9)
-	Corner.Parent = Button
+	Button.TextColor3 =
+		C.White
+
+	Button.TextSize = 10
+
+	Button.Font =
+		Enum.Font.GothamBold
+
+	Button.AutoButtonColor = false
+
+	Button.Parent =
+		Parent or MainPage
+
+	Corner(Button, 10)
+
+	local S =
+		AddStroke(
+			Button,
+			C.Stroke,
+			1,
+			0.35
+		)
+
+	Button.MouseEnter:Connect(function()
+
+		MakeTween(
+			Button,
+			0.12,
+			{
+				BackgroundColor3 =
+					C.ButtonHover
+			}
+		):Play()
+
+		MakeTween(
+			S,
+			0.12,
+			{
+				Transparency = 0
+			}
+		):Play()
+
+	end)
+
+	Button.MouseLeave:Connect(function()
+
+		MakeTween(
+			Button,
+			0.12,
+			{
+				BackgroundColor3 =
+					C.Button
+			}
+		):Play()
+
+		MakeTween(
+			S,
+			0.12,
+			{
+				Transparency = 0.35
+			}
+		):Play()
+
+	end)
 
 	return Button
 
 end
 
+--========================================================--
+-- MAIN BUTTONS
+--========================================================--
+
 local SpeedButton =
 	FeatureButton(
-		"SPEED : OFF",
-		12,
-		65
+		"SPEED  :  OFF",
+		15,
+		10
 	)
 
 local JumpButton =
 	FeatureButton(
-		"JUMP : OFF",
-		178,
-		65
+		"HIGH JUMP  :  OFF",
+		205,
+		10
 	)
 
 local FlyButton =
 	FeatureButton(
-		"FLY : OFF",
-		12,
-		110
+		"FLY  :  OFF",
+		15,
+		58
 	)
 
 local NoClipButton =
 	FeatureButton(
-		"NOCLIP : OFF",
-		178,
-		110
+		"NOCLIP  :  OFF",
+		205,
+		58
 	)
 
 --========================================================--
@@ -509,86 +1454,171 @@ local function MakeSlider(
 	Changed
 )
 
-	local Label = Instance.new("TextLabel")
+	local Label =
+		Instance.new("TextLabel")
 
-	Label.Size = UDim2.fromOffset(130, 24)
-	Label.Position = UDim2.fromOffset(12, Y)
+	Label.Size =
+		UDim2.fromOffset(200, 22)
+
+	Label.Position =
+		UDim2.fromOffset(15, Y)
+
 	Label.BackgroundTransparency = 1
-	Label.Text = Title
-	Label.TextColor3 = Color3.fromRGB(190, 195, 205)
+
+	Label.Text =
+		Title
+
+	Label.TextColor3 =
+		C.Gray
+
 	Label.TextSize = 10
-	Label.Font = Enum.Font.GothamBold
-	Label.TextXAlignment = Enum.TextXAlignment.Left
-	Label.Parent = Main
 
-	local Track = Instance.new("Frame")
+	Label.Font =
+		Enum.Font.GothamBold
 
-	Track.Size = UDim2.fromOffset(205, 7)
-	Track.Position = UDim2.fromOffset(12, Y + 27)
-	Track.BackgroundColor3 = Color3.fromRGB(42, 44, 52)
+	Label.TextXAlignment =
+		Enum.TextXAlignment.Left
+
+	Label.Parent =
+		MainPage
+
+	local Track =
+		Instance.new("Frame")
+
+	Track.Size =
+		UDim2.fromOffset(260, 7)
+
+	Track.Position =
+		UDim2.fromOffset(15, Y + 27)
+
+	Track.BackgroundColor3 =
+		Color3.fromRGB(39, 40, 50)
+
 	Track.BorderSizePixel = 0
-	Track.Parent = Main
 
-	local TrackCorner = Instance.new("UICorner")
+	Track.Parent =
+		MainPage
 
-	TrackCorner.CornerRadius = UDim.new(1, 0)
-	TrackCorner.Parent = Track
+	Corner(Track, 10)
 
-	local Fill = Instance.new("Frame")
+	local Fill =
+		Instance.new("Frame")
 
-	Fill.Size = UDim2.new(0, 0, 1, 0)
-	Fill.BackgroundColor3 = Color3.fromRGB(110, 180, 255)
+	Fill.Size =
+		UDim2.new(0, 0, 1, 0)
+
+	Fill.BackgroundColor3 =
+		C.Purple
+
 	Fill.BorderSizePixel = 0
-	Fill.Parent = Track
 
-	local FillCorner = Instance.new("UICorner")
+	Fill.Parent =
+		Track
 
-	FillCorner.CornerRadius = UDim.new(1, 0)
-	FillCorner.Parent = Fill
+	Corner(Fill, 10)
 
-	local Knob = Instance.new("TextButton")
+	local FillGradient =
+		Instance.new("UIGradient")
 
-	Knob.Size = UDim2.fromOffset(17, 17)
-	Knob.AnchorPoint = Vector2.new(0.5, 0.5)
-	Knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	FillGradient.Color =
+		ColorSequence.new({
+
+			ColorSequenceKeypoint.new(
+				0,
+				C.Blue
+			),
+
+			ColorSequenceKeypoint.new(
+				1,
+				C.Purple
+			)
+
+		})
+
+	FillGradient.Parent =
+		Fill
+
+	local Knob =
+		Instance.new("TextButton")
+
+	Knob.Size =
+		UDim2.fromOffset(18, 18)
+
+	Knob.AnchorPoint =
+		Vector2.new(0.5, 0.5)
+
+	Knob.BackgroundColor3 =
+		Color3.fromRGB(250, 250, 255)
+
 	Knob.BorderSizePixel = 0
+
 	Knob.Text = ""
-	Knob.Parent = Track
 
-	local KnobCorner = Instance.new("UICorner")
+	Knob.Parent =
+		Track
 
-	KnobCorner.CornerRadius = UDim.new(1, 0)
-	KnobCorner.Parent = Knob
+	Corner(Knob, 20)
 
-	local Input = Instance.new("TextBox")
+	AddStroke(
+		Knob,
+		C.Purple,
+		1,
+		0.15
+	)
 
-	Input.Size = UDim2.fromOffset(72, 30)
-	Input.Position = UDim2.fromOffset(247, Y - 2)
-	Input.BackgroundColor3 = Color3.fromRGB(31, 32, 40)
+	local Input =
+		Instance.new("TextBox")
+
+	Input.Size =
+		UDim2.fromOffset(75, 31)
+
+	Input.Position =
+		UDim2.fromOffset(300, Y - 5)
+
+	Input.BackgroundColor3 =
+		C.Button
+
 	Input.BorderSizePixel = 0
-	Input.Text = tostring(DefaultValue)
-	Input.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+	Input.Text =
+		tostring(DefaultValue)
+
+	Input.TextColor3 =
+		C.White
+
 	Input.TextSize = 11
-	Input.Font = Enum.Font.GothamBold
+
+	Input.Font =
+		Enum.Font.GothamBold
+
 	Input.ClearTextOnFocus = false
-	Input.Parent = Main
 
-	local InputCorner = Instance.new("UICorner")
+	Input.Parent =
+		MainPage
 
-	InputCorner.CornerRadius = UDim.new(0, 7)
-	InputCorner.Parent = Input
+	Corner(Input, 8)
 
-	local Current = DefaultValue
+	AddStroke(
+		Input,
+		C.Stroke,
+		1,
+		0.35
+	)
+
+	local Current =
+		DefaultValue
 
 	local function SetValue(Value)
 
-		Value = tonumber(Value) or Current
+		Value =
+			tonumber(Value) or Current
 
-		Value = math.clamp(
-			math.floor(Value + 0.5),
-			Min,
-			Max
-		)
+		Value =
+			math.clamp(
+				math.floor(Value + 0.5),
+				Min,
+				Max
+			)
 
 		Current = Value
 
@@ -596,21 +1626,24 @@ local function MakeSlider(
 			(Value - Min) /
 			(Max - Min)
 
-		Fill.Size = UDim2.new(
-			Percent,
-			0,
-			1,
-			0
-		)
+		Fill.Size =
+			UDim2.new(
+				Percent,
+				0,
+				1,
+				0
+			)
 
-		Knob.Position = UDim2.new(
-			Percent,
-			0,
-			0.5,
-			0
-		)
+		Knob.Position =
+			UDim2.new(
+				Percent,
+				0,
+				0.5,
+				0
+			)
 
-		Input.Text = tostring(Value)
+		Input.Text =
+			tostring(Value)
 
 		Changed(Value)
 
@@ -623,6 +1656,10 @@ local function MakeSlider(
 
 		local Width =
 			Track.AbsoluteSize.X
+
+		if Width <= 0 then
+			return
+		end
 
 		local Percent =
 			math.clamp(
@@ -640,90 +1677,96 @@ local function MakeSlider(
 
 	end
 
-	Track.InputBegan:Connect(function(input)
+	Track.InputBegan:Connect(
+		function(InputObject)
 
-		if input.UserInputType ==
-			Enum.UserInputType.MouseButton1 then
+			if InputObject.UserInputType ==
+				Enum.UserInputType.MouseButton1 then
 
-			SetFromMouse(
-				input.Position.X
-			)
+				SetFromMouse(
+					InputObject.Position.X
+				)
 
-		end
-
-	end)
-
-	Knob.InputBegan:Connect(function(input)
-
-		if input.UserInputType ~=
-			Enum.UserInputType.MouseButton1 then
-
-			return
+			end
 
 		end
+	)
 
-		local Moving
-		local Released
+	Knob.InputBegan:Connect(
+		function(InputObject)
 
-		Moving =
-			UIS.InputChanged:Connect(
-				function(move)
+			if InputObject.UserInputType ~=
+				Enum.UserInputType.MouseButton1 then
+				return
+			end
 
-					if move.UserInputType ==
-						Enum.UserInputType.MouseMovement then
+			local Moving
+			local Released
 
-						SetFromMouse(
-							move.Position.X
-						)
+			Moving =
+				UIS.InputChanged:Connect(
+					function(Move)
+
+						if Move.UserInputType ==
+							Enum.UserInputType.MouseMovement then
+
+							SetFromMouse(
+								Move.Position.X
+							)
+
+						end
 
 					end
+				)
 
-				end
-			)
+			Released =
+				UIS.InputEnded:Connect(
+					function(Ended)
 
-		Released =
-			UIS.InputEnded:Connect(
-				function(endInput)
+						if Ended.UserInputType ==
+							Enum.UserInputType.MouseButton1 then
 
-					if endInput.UserInputType ==
-						Enum.UserInputType.MouseButton1 then
+							Moving:Disconnect()
+							Released:Disconnect()
 
-						Moving:Disconnect()
-						Released:Disconnect()
+						end
 
 					end
-
-				end
-			)
-
-	end)
-
-	Input.FocusLost:Connect(function()
-
-		local Number =
-			tonumber(Input.Text)
-
-		if Number then
-
-			SetValue(Number)
-
-		else
-
-			Input.Text =
-				tostring(Current)
+				)
 
 		end
+	)
 
-	end)
+	Input.FocusLost:Connect(
+		function()
+
+			local Number =
+				tonumber(Input.Text)
+
+			if Number then
+
+				SetValue(Number)
+
+			else
+
+				Input.Text =
+					tostring(Current)
+
+			end
+
+		end
+	)
 
 	SetValue(DefaultValue)
 
 	return {
+
 		Set = SetValue,
 
 		Get = function()
 			return Current
 		end
+
 	}
 
 end
@@ -735,7 +1778,7 @@ end
 local SpeedSlider =
 	MakeSlider(
 		"SPEED",
-		165,
+		110,
 		16,
 		200,
 		Settings.Speed,
@@ -752,8 +1795,8 @@ local SpeedSlider =
 
 local JumpSlider =
 	MakeSlider(
-		"JUMP",
-		225,
+		"HIGH JUMP",
+		170,
 		50,
 		250,
 		Settings.Jump,
@@ -771,7 +1814,7 @@ local JumpSlider =
 local FlySlider =
 	MakeSlider(
 		"FLY SPEED",
-		285,
+		230,
 		20,
 		250,
 		Settings.FlySpeed,
@@ -788,59 +1831,61 @@ local FlySlider =
 
 SpeedButton.MouseButton1Click:Connect(function()
 
-	SpeedEnabled = not SpeedEnabled
+	SpeedEnabled =
+		not SpeedEnabled
 
-	if Humanoid then
+	if not Humanoid then
+		return
+	end
 
-		if SpeedEnabled then
+	if SpeedEnabled then
 
-			Humanoid.WalkSpeed =
-				Settings.Speed
+		Humanoid.WalkSpeed =
+			Settings.Speed
 
-			SpeedButton.Text =
-				"SPEED : ON"
+		SpeedButton.Text =
+			"SPEED  :  ON"
 
-		else
+	else
 
-			Humanoid.WalkSpeed = 16
+		Humanoid.WalkSpeed = 16
 
-			SpeedButton.Text =
-				"SPEED : OFF"
-
-		end
+		SpeedButton.Text =
+			"SPEED  :  OFF"
 
 	end
 
 end)
 
 --========================================================--
--- JUMP
+-- HIGH JUMP
 --========================================================--
 
 JumpButton.MouseButton1Click:Connect(function()
 
-	JumpEnabled = not JumpEnabled
+	JumpEnabled =
+		not JumpEnabled
 
-	if Humanoid then
+	if not Humanoid then
+		return
+	end
 
-		Humanoid.UseJumpPower = true
+	Humanoid.UseJumpPower = true
 
-		if JumpEnabled then
+	if JumpEnabled then
 
-			Humanoid.JumpPower =
-				Settings.Jump
+		Humanoid.JumpPower =
+			Settings.Jump
 
-			JumpButton.Text =
-				"JUMP : ON"
+		JumpButton.Text =
+			"HIGH JUMP  :  ON"
 
-		else
+	else
 
-			Humanoid.JumpPower = 50
+		Humanoid.JumpPower = 50
 
-			JumpButton.Text =
-				"JUMP : OFF"
-
-		end
+		JumpButton.Text =
+			"HIGH JUMP  :  OFF"
 
 	end
 
@@ -903,75 +1948,79 @@ local function StartFly()
 				end
 
 				local Camera =
-					workspace.CurrentCamera
+				workspace.CurrentCamera
+
+				if not Camera then
+					return
+				end
 
 				local Direction =
-					Vector3.zero
+				Vector3.zero
 
 				if UIS:IsKeyDown(
 					Enum.KeyCode.W
-				) then
+					) then
 
 					Direction +=
-						Camera.CFrame.LookVector
+					Camera.CFrame.LookVector
 
 				end
 
 				if UIS:IsKeyDown(
 					Enum.KeyCode.S
-				) then
+					) then
 
 					Direction -=
-						Camera.CFrame.LookVector
+					Camera.CFrame.LookVector
 
 				end
 
 				if UIS:IsKeyDown(
 					Enum.KeyCode.A
-				) then
+					) then
 
 					Direction -=
-						Camera.CFrame.RightVector
+					Camera.CFrame.RightVector
 
 				end
 
 				if UIS:IsKeyDown(
 					Enum.KeyCode.D
-				) then
+					) then
 
 					Direction +=
-						Camera.CFrame.RightVector
+					Camera.CFrame.RightVector
 
 				end
 
 				if UIS:IsKeyDown(
 					Enum.KeyCode.Space
-				) then
+					) then
 
 					Direction +=
-						Vector3.new(0, 1, 0)
+					Vector3.new(0, 1, 0)
 
 				end
 
 				if UIS:IsKeyDown(
 					Enum.KeyCode.LeftControl
-				) then
+					) then
 
 					Direction -=
-						Vector3.new(0, 1, 0)
+					Vector3.new(0, 1, 0)
 
 				end
 
 				if Direction.Magnitude > 0 then
 
 					FlyVelocity.Velocity =
-						Direction.Unit *
-						Settings.FlySpeed
+					Direction.Unit *
+					Settings.FlySpeed
 
 				else
 
 					FlyVelocity.Velocity =
-						Vector3.zero
+					Vector3.zero
 
 				end
 
@@ -987,14 +2036,14 @@ FlyButton.MouseButton1Click:Connect(function()
 		StopFly()
 
 		FlyButton.Text =
-			"FLY : OFF"
+			"FLY  :  OFF"
 
 	else
 
 		StartFly()
 
 		FlyButton.Text =
-			"FLY : ON"
+			"FLY  :  ON"
 
 	end
 
@@ -1019,12 +2068,10 @@ local function StopNoClip()
 
 		for _, Object in ipairs(
 			Character:GetDescendants()
-		) do
+			) do
 
 			if Object:IsA("BasePart") then
-
 				Object.CanCollide = true
-
 			end
 
 		end
@@ -1051,12 +2098,10 @@ local function StartNoClip()
 
 				for _, Object in ipairs(
 					Character:GetDescendants()
-				) do
+					) do
 
 					if Object:IsA("BasePart") then
-
 						Object.CanCollide = false
-
 					end
 
 				end
@@ -1073,14 +2118,14 @@ NoClipButton.MouseButton1Click:Connect(function()
 		StopNoClip()
 
 		NoClipButton.Text =
-			"NOCLIP : OFF"
+			"NOCLIP  :  OFF"
 
 	else
 
 		StartNoClip()
 
 		NoClipButton.Text =
-			"NOCLIP : ON"
+			"NOCLIP  :  ON"
 
 	end
 
@@ -1093,8 +2138,8 @@ end)
 local Teleport =
 	FeatureButton(
 		"TELEPORT",
-		12,
-		350
+		15,
+		300
 	)
 
 Teleport.MouseButton1Click:Connect(function()
@@ -1107,7 +2152,7 @@ Teleport.MouseButton1Click:Connect(function()
 
 	for _, Object in ipairs(
 		workspace:GetDescendants()
-	) do
+		) do
 
 		if Object:IsA("SpawnLocation") then
 
@@ -1135,19 +2180,21 @@ end)
 local Reset =
 	FeatureButton(
 		"RESET ALL",
-		178,
-		350
+		205,
+		300
 	)
 
 local function ResetEverything()
 
 	StopFly()
 	StopNoClip()
+	StopESP()
 
 	SpeedEnabled = false
 	JumpEnabled = false
 	FlyEnabled = false
 	NoClipEnabled = false
+	ESPEnabled = false
 
 	Settings.Speed =
 		DEFAULT.Speed
@@ -1167,16 +2214,16 @@ local function ResetEverything()
 	end
 
 	SpeedButton.Text =
-		"SPEED : OFF"
+		"SPEED  :  OFF"
 
 	JumpButton.Text =
-		"JUMP : OFF"
+		"HIGH JUMP  :  OFF"
 
 	FlyButton.Text =
-		"FLY : OFF"
+		"FLY  :  OFF"
 
 	NoClipButton.Text =
-		"NOCLIP : OFF"
+		"NOCLIP  :  OFF"
 
 	SpeedSlider.Set(
 		DEFAULT.Speed
@@ -1190,11 +2237,226 @@ local function ResetEverything()
 		DEFAULT.FlySpeed
 	)
 
+	if ESPButton then
+		ESPButton.Text =
+			"ESP  :  OFF"
+	end
+
 end
 
 Reset.MouseButton1Click:Connect(
 	ResetEverything
 )
+
+--========================================================--
+-- FARM TAB / ESP
+--========================================================--
+
+local FarmTitle =
+	Instance.new("TextLabel")
+
+FarmTitle.Size =
+	UDim2.new(1, -30, 0, 35)
+
+FarmTitle.Position =
+	UDim2.fromOffset(15, 8)
+
+FarmTitle.BackgroundTransparency = 1
+
+FarmTitle.Text =
+	"FARM"
+
+FarmTitle.TextColor3 =
+	C.White
+
+FarmTitle.TextSize = 18
+
+FarmTitle.Font =
+	Enum.Font.GothamBlack
+
+FarmTitle.TextXAlignment =
+	Enum.TextXAlignment.Left
+
+FarmTitle.Parent =
+	FarmPage
+
+local FarmLine =
+	Instance.new("Frame")
+
+FarmLine.Size =
+	UDim2.new(1, -30, 0, 1)
+
+FarmLine.Position =
+	UDim2.fromOffset(15, 45)
+
+FarmLine.BackgroundColor3 =
+	C.Stroke
+
+FarmLine.BackgroundTransparency = 0.35
+
+FarmLine.BorderSizePixel = 0
+
+FarmLine.Parent =
+	FarmPage
+
+--========================================================--
+-- ESP BUTTON
+--========================================================--
+
+local ESPButton =
+	FeatureButton(
+		"ESP  :  OFF",
+		15,
+		65,
+		FarmPage
+	)
+
+ESPButton.MouseButton1Click:Connect(function()
+
+	if ESPEnabled then
+
+		StopESP()
+
+		ESPButton.Text =
+			"ESP  :  OFF"
+
+	else
+
+		StartESP()
+
+		ESPButton.Text =
+			"ESP  :  ON"
+
+	end
+
+end)
+
+--========================================================--
+-- ESP INFO
+--========================================================--
+
+local ESPInfo =
+	Instance.new("TextLabel")
+
+ESPInfo.Size =
+	UDim2.new(1, -30, 0, 100)
+
+ESPInfo.Position =
+	UDim2.fromOffset(15, 120)
+
+ESPInfo.BackgroundColor3 =
+	C.Button
+
+ESPInfo.BackgroundTransparency = 0.2
+
+ESPInfo.BorderSizePixel = 0
+
+ESPInfo.Text =
+	"ESP\n\nHiển thị người chơi + khoảng cách"
+
+ESPInfo.TextColor3 =
+	C.Gray
+
+ESPInfo.TextSize = 11
+
+ESPInfo.Font =
+	Enum.Font.GothamBold
+
+ESPInfo.TextWrapped = true
+
+ESPInfo.TextYAlignment =
+	Enum.TextYAlignment.Center
+
+ESPInfo.Parent =
+	FarmPage
+
+Corner(
+	ESPInfo,
+	12
+)
+
+AddStroke(
+	ESPInfo,
+	C.Stroke,
+	1,
+	0.45
+)
+
+--========================================================--
+-- TAB SYSTEM
+--========================================================--
+
+local function SelectTab(Number)
+
+	if Number == 1 then
+
+		MainPage.Visible = true
+		FarmPage.Visible = false
+
+		MakeTween(
+			Tab1,
+			0.15,
+			{
+				BackgroundColor3 =
+					Color3.fromRGB(
+						68,
+						48,
+						98
+					)
+			}
+		):Play()
+
+		MakeTween(
+			Tab2,
+			0.15,
+			{
+				BackgroundColor3 =
+					C.Button
+			}
+		):Play()
+
+	else
+
+		MainPage.Visible = false
+		FarmPage.Visible = true
+
+		MakeTween(
+			Tab1,
+			0.15,
+			{
+				BackgroundColor3 =
+					C.Button
+			}
+		):Play()
+
+		MakeTween(
+			Tab2,
+			0.15,
+			{
+				BackgroundColor3 =
+					Color3.fromRGB(
+						68,
+						48,
+						98
+					)
+			}
+		):Play()
+
+	end
+
+end
+
+Tab1.MouseButton1Click:Connect(function()
+
+	SelectTab(1)
+
+end)
+
+Tab2.MouseButton1Click:Connect(function()
+
+	SelectTab(2)
+
+end)
 
 --========================================================--
 -- OPEN / CLOSE
@@ -1205,22 +2467,23 @@ local MenuOpen = false
 local function OpenMenu()
 
 	MenuOpen = true
+
 	Main.Visible = true
 
 	Main.Size =
 		UDim2.fromOffset(0, 0)
 
-	TweenService:Create(
+	MakeTween(
 		Main,
-		TweenInfo.new(
-			0.25,
-			Enum.EasingStyle.Back,
-			Enum.EasingDirection.Out
-		),
+		0.3,
 		{
 			Size =
-				UDim2.fromOffset(340, 460)
-		}
+				UDim2.fromOffset(
+					400,
+					510
+				)
+		},
+		Enum.EasingStyle.Back
 	):Play()
 
 end
@@ -1230,36 +2493,82 @@ local function CloseMenu()
 	MenuOpen = false
 
 	local Animation =
-		TweenService:Create(
+		MakeTween(
 			Main,
-			TweenInfo.new(0.18),
+			0.18,
 			{
 				Size =
-					UDim2.fromOffset(0, 0)
-			}
+				UDim2.fromOffset(
+					0,
+					0
+				)
+			},
+			Enum.EasingStyle.Quad
 		)
 
 	Animation:Play()
 
-	Animation.Completed:Once(function()
+	Animation.Completed:Once(
+		function()
 
-		if not MenuOpen then
+			if not MenuOpen then
 
-			Main.Visible = false
+				Main.Visible = false
+
+			end
 
 		end
-
-	end)
+	)
 
 end
 
 HubButton.MouseButton1Click:Connect(function()
 
 	if MenuOpen then
+
 		CloseMenu()
+
 	else
+
 		OpenMenu()
+
 	end
+
+end)
+
+--========================================================--
+-- HUB BUTTON ANIMATION
+--========================================================--
+
+HubButton.MouseEnter:Connect(function()
+
+	MakeTween(
+		HubButton,
+		0.15,
+		{
+			Size =
+				UDim2.fromOffset(
+					70,
+					70
+				)
+		}
+	):Play()
+
+end)
+
+HubButton.MouseLeave:Connect(function()
+
+	MakeTween(
+		HubButton,
+		0.15,
+		{
+			Size =
+				UDim2.fromOffset(
+					64,
+					64
+				)
+		}
+	):Play()
 
 end)
 
@@ -1267,20 +2576,33 @@ end)
 -- SHOW BUTTON AFTER LOADING
 --========================================================--
 
-task.delay(4.2, function()
+task.delay(
+	5.0,
+	function()
 
-	HubButton.Visible = true
+		if not HubButton.Parent then
+			return
+		end
 
-	HubButton.BackgroundTransparency = 1
+		HubButton.Visible = true
 
-	TweenService:Create(
-		HubButton,
-		TweenInfo.new(0.4),
-		{
-			BackgroundTransparency = 0
-		}
-	):Play()
+		HubButton.BackgroundTransparency = 1
 
-end)
+		MakeTween(
+			HubButton,
+			0.45,
+			{
+				BackgroundTransparency = 0
+			}
+		):Play()
 
-print("MK HUB READY")
+	end
+)
+
+--========================================================--
+-- READY
+--========================================================--
+
+print(
+	"MK HUB v2.0 READY"
+)
