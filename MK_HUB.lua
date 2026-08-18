@@ -1,6 +1,7 @@
 --========================================================--
 --                    MK HUB v2.0                         --
 --                 FOX ANIME EDITION                      --
+--                 TOOL / AIMLOCK UPDATE                  --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -9,6 +10,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Player = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
 --========================================================--
 -- SETTINGS
@@ -17,13 +19,15 @@ local Player = Players.LocalPlayer
 local DEFAULT = {
 	Speed = 60,
 	Jump = 100,
-	FlySpeed = 80
+	FlySpeed = 80,
+	AimFOV = 150
 }
 
 local Settings = {
 	Speed = DEFAULT.Speed,
 	Jump = DEFAULT.Jump,
-	FlySpeed = DEFAULT.FlySpeed
+	FlySpeed = DEFAULT.FlySpeed,
+	AimFOV = DEFAULT.AimFOV
 }
 
 --========================================================--
@@ -67,21 +71,21 @@ local FlyEnabled = false
 local NoClipEnabled = false
 local ESPEnabled = false
 
-local AimlockEnabled = false
-local AimlockTarget = nil
-local AimlockFOV = 150
+-- AIMLOCK ONLY
+local AimLockEnabled = false
+local SelectedTarget = nil
 
 local FlyVelocity
 local FlyConnection
 local NoClipConnection
-local ESPConnection
-local AimlockConnection
+local AimLockConnection
 
 --========================================================--
 -- ESP
 --========================================================--
 
 local ESPObjects = {}
+local ESPConnection
 
 local function RemoveESP(PlayerObject)
 
@@ -126,6 +130,10 @@ local function CreateESP(PlayerObject)
 
 	RemoveESP(PlayerObject)
 
+	--====================================================--
+	-- HIGHLIGHT
+	--====================================================--
+
 	local Highlight = Instance.new("Highlight")
 
 	Highlight.Name = "MK_ESP_Highlight"
@@ -145,6 +153,10 @@ local function CreateESP(PlayerObject)
 
 	Highlight.Parent = CharacterObject
 
+	--====================================================--
+	-- NAME TAG
+	--====================================================--
+
 	local Billboard = Instance.new("BillboardGui")
 
 	Billboard.Name = "MK_ESP_Name"
@@ -158,6 +170,7 @@ local function CreateESP(PlayerObject)
 
 	Billboard.AlwaysOnTop = true
 	Billboard.MaxDistance = 500
+
 	Billboard.Parent = Head
 
 	local NameLabel = Instance.new("TextLabel")
@@ -180,6 +193,7 @@ local function CreateESP(PlayerObject)
 
 	NameLabel.TextSize = 13
 	NameLabel.Font = Enum.Font.GothamBold
+
 	NameLabel.Parent = Billboard
 
 	local DistanceLabel = Instance.new("TextLabel")
@@ -205,6 +219,7 @@ local function CreateESP(PlayerObject)
 
 	DistanceLabel.TextSize = 10
 	DistanceLabel.Font = Enum.Font.Gotham
+
 	DistanceLabel.Parent = Billboard
 
 	ESPObjects[PlayerObject] = {
@@ -246,23 +261,19 @@ local function UpdateESP()
 
 				Data =
 					ESPObjects[OtherPlayer]
-
 			end
 
 			if Data and OtherRoot then
 
 				local Distance =
-					(
-						Root.Position -
-						OtherRoot.Position
-					).Magnitude
+					(Root.Position -
+						OtherRoot.Position).Magnitude
 
 				if Data.Distance then
 
 					Data.Distance.Text =
-						math.floor(Distance) ..
-						" studs"
-
+						math.floor(Distance)
+						.. " studs"
 				end
 			end
 		end
@@ -293,14 +304,11 @@ local function StartESP()
 
 	ESPEnabled = true
 
-	for _, OtherPlayer in ipairs(
-		Players:GetPlayers()
-	) do
+	for _, OtherPlayer in ipairs(Players:GetPlayers()) do
 
 		if OtherPlayer ~= Player then
 			CreateESP(OtherPlayer)
 		end
-
 	end
 
 	ESPConnection =
@@ -318,308 +326,18 @@ Players.PlayerAdded:Connect(function(OtherPlayer)
 			task.wait(0.3)
 
 			CreateESP(OtherPlayer)
-
 		end
-
 	end)
-
 end)
 
 Players.PlayerRemoving:Connect(function(OtherPlayer)
 
 	RemoveESP(OtherPlayer)
 
-	if AimlockTarget == OtherPlayer then
-		AimlockTarget = nil
+	if SelectedTarget == OtherPlayer then
+		SelectedTarget = nil
 	end
-
 end)
-
---========================================================--
--- AIMLOCK
---========================================================--
-
-local AIMLOCK_MIN_FOV = 25
-local AIMLOCK_MAX_FOV = 600
-
-local FOVCircle
-
-local function CreateFOVCircle()
-
-	if FOVCircle then
-		FOVCircle:Remove()
-	end
-
-	FOVCircle = Drawing.new("Circle")
-
-	FOVCircle.Visible = false
-	FOVCircle.Thickness = 1.5
-	FOVCircle.Filled = false
-	FOVCircle.Transparency = 0.85
-	FOVCircle.Color =
-		Color3.fromRGB(
-			178,
-			105,
-			255
-		)
-
-	FOVCircle.Radius =
-		AimlockFOV
-end
-
-CreateFOVCircle()
-
-local function GetMousePosition()
-
-	local Position =
-		UIS:GetMouseLocation()
-
-	return Vector2.new(
-		Position.X,
-		Position.Y
-	)
-end
-
-local function IsValidAimTarget(OtherPlayer)
-
-	if OtherPlayer == Player then
-		return false
-	end
-
-	local CharacterObject =
-		OtherPlayer.Character
-
-	if not CharacterObject then
-		return false
-	end
-
-	local TargetHumanoid =
-		CharacterObject:FindFirstChildOfClass(
-			"Humanoid"
-		)
-
-	local Head =
-		CharacterObject:FindFirstChild(
-			"Head"
-		)
-
-	if not TargetHumanoid then
-		return false
-	end
-
-	if TargetHumanoid.Health <= 0 then
-		return false
-	end
-
-	if not Head then
-		return false
-	end
-
-	return true
-end
-
-local function GetClosestTarget()
-
-	local Camera =
-		workspace.CurrentCamera
-
-	if not Camera then
-		return nil
-	end
-
-	local MousePosition =
-		GetMousePosition()
-
-	local ClosestPlayer
-	local ClosestDistance =
-		math.huge
-
-	for _, OtherPlayer in ipairs(
-		Players:GetPlayers()
-	) do
-
-		if IsValidAimTarget(OtherPlayer) then
-
-			local CharacterObject =
-				OtherPlayer.Character
-
-			local Head =
-				CharacterObject:FindFirstChild(
-					"Head"
-				)
-
-			local ScreenPosition,
-				OnScreen =
-				Camera:WorldToViewportPoint(
-					Head.Position
-				)
-
-			if OnScreen then
-
-				local ScreenDistance =
-					(
-						Vector2.new(
-							ScreenPosition.X,
-							ScreenPosition.Y
-						) -
-						MousePosition
-					).Magnitude
-
-				if
-					ScreenDistance <= AimlockFOV
-					and
-					ScreenDistance < ClosestDistance
-				then
-
-					ClosestDistance =
-						ScreenDistance
-
-					ClosestPlayer =
-						OtherPlayer
-				end
-			end
-		end
-	end
-
-	return ClosestPlayer
-end
-
-local function UpdateFOVCircle()
-
-	if not FOVCircle then
-		return
-	end
-
-	local MousePosition =
-		GetMousePosition()
-
-	FOVCircle.Position =
-		MousePosition
-
-	FOVCircle.Radius =
-		AimlockFOV
-
-	FOVCircle.Visible =
-		AimlockEnabled
-end
-
-local function StopAimlock()
-
-	AimlockEnabled = false
-	AimlockTarget = nil
-
-	if AimlockConnection then
-		AimlockConnection:Disconnect()
-		AimlockConnection = nil
-	end
-
-	if FOVCircle then
-		FOVCircle.Visible = false
-	end
-end
-
-local function StartAimlock()
-
-	if AimlockEnabled then
-		return
-	end
-
-	AimlockEnabled = true
-
-	AimlockConnection =
-		RunService.RenderStepped:Connect(
-			function()
-
-				if not AimlockEnabled then
-					return
-				end
-
-				local Camera =
-					workspace.CurrentCamera
-
-				if not Camera then
-					return
-				end
-
-				UpdateFOVCircle()
-
-				if
-					AimlockTarget
-					and
-					IsValidAimTarget(
-						AimlockTarget
-					)
-				then
-
-					local Head =
-						AimlockTarget.Character
-						:FindFirstChild("Head")
-
-					if Head then
-
-						local ScreenPosition,
-							OnScreen =
-							Camera:WorldToViewportPoint(
-								Head.Position
-							)
-
-						if not OnScreen then
-							AimlockTarget = nil
-						else
-
-							local MousePosition =
-								GetMousePosition()
-
-							local Distance =
-								(
-									Vector2.new(
-										ScreenPosition.X,
-										ScreenPosition.Y
-									) -
-									MousePosition
-								).Magnitude
-
-							if Distance >
-								AimlockFOV then
-
-								AimlockTarget = nil
-
-							end
-						end
-					end
-
-				else
-
-					AimlockTarget =
-						GetClosestTarget()
-
-				end
-
-				if AimlockTarget then
-
-					local TargetCharacter =
-						AimlockTarget.Character
-
-					local Head =
-						TargetCharacter
-						and TargetCharacter:FindFirstChild(
-							"Head"
-						)
-
-					if Head then
-
-						Camera.CFrame =
-							CFrame.lookAt(
-								Camera.CFrame.Position,
-								Head.Position
-							)
-
-					end
-				end
-
-			end
-		)
-end
 
 --========================================================--
 -- COLORS
@@ -627,58 +345,44 @@ end
 
 local C = {
 
-	Background =
-		Color3.fromRGB(7, 8, 13),
+	Background = Color3.fromRGB(7, 8, 13),
 
-	Panel =
-		Color3.fromRGB(14, 15, 22),
+	Panel = Color3.fromRGB(14, 15, 22),
 
-	Panel2 =
-		Color3.fromRGB(21, 22, 31),
+	Panel2 = Color3.fromRGB(21, 22, 31),
 
-	Button =
-		Color3.fromRGB(27, 28, 38),
+	Button = Color3.fromRGB(27, 28, 38),
 
-	ButtonHover =
-		Color3.fromRGB(43, 43, 58),
+	ButtonHover = Color3.fromRGB(43, 43, 58),
 
-	White =
-		Color3.fromRGB(245, 245, 255),
+	White = Color3.fromRGB(245, 245, 255),
 
-	Gray =
-		Color3.fromRGB(150, 152, 170),
+	Gray = Color3.fromRGB(150, 152, 170),
 
-	Purple =
-		Color3.fromRGB(178, 105, 255),
+	Purple = Color3.fromRGB(178, 105, 255),
 
-	Blue =
-		Color3.fromRGB(100, 160, 255),
+	Blue = Color3.fromRGB(100, 160, 255),
 
-	Pink =
-		Color3.fromRGB(255, 125, 205),
+	Pink = Color3.fromRGB(255, 125, 205),
 
-	Stroke =
-		Color3.fromRGB(70, 70, 92)
+	Stroke = Color3.fromRGB(70, 70, 92)
+
 }
 
 --========================================================--
 -- GUI
 --========================================================--
 
-local Gui =
-	Instance.new("ScreenGui")
+local Gui = Instance.new("ScreenGui")
 
-Gui.Name =
-	"MK_HUB_v2"
+Gui.Name = "MK_HUB_v2"
 
 Gui.ResetOnSpawn = false
 Gui.IgnoreGuiInset = true
 Gui.DisplayOrder = 999
 
 Gui.Parent =
-	Player:WaitForChild(
-		"PlayerGui"
-	)
+	Player:WaitForChild("PlayerGui")
 
 --========================================================--
 -- UTILITY
@@ -690,13 +394,9 @@ local function Corner(Object, Radius)
 		Instance.new("UICorner")
 
 	CornerObject.CornerRadius =
-		UDim.new(
-			0,
-			Radius
-		)
+		UDim.new(0, Radius)
 
-	CornerObject.Parent =
-		Object
+	CornerObject.Parent = Object
 
 	return CornerObject
 end
@@ -720,8 +420,7 @@ local function AddStroke(
 	S.Transparency =
 		Transparency or 0
 
-	S.Parent =
-		Object
+	S.Parent = Object
 
 	return S
 end
@@ -745,6 +444,7 @@ local function MakeTween(
 				Enum.EasingStyle.Quart,
 
 			Enum.EasingDirection.Out
+
 		),
 
 		Properties
@@ -764,65 +464,60 @@ local function MakeDraggable(
 	local DragStart
 	local StartPosition
 
-	Handle.InputBegan:Connect(
-		function(Input)
+	Handle.InputBegan:Connect(function(Input)
 
-			if Input.UserInputType ==
-				Enum.UserInputType.MouseButton1 then
+		if Input.UserInputType ==
+			Enum.UserInputType.MouseButton1 then
 
-				Dragging = true
+			Dragging = true
 
-				DragStart =
-					Input.Position
+			DragStart =
+				Input.Position
 
-				StartPosition =
-					Object.Position
-
-			end
+			StartPosition =
+				Object.Position
 		end
-	)
+	end)
 
-	Handle.InputEnded:Connect(
-		function(Input)
+	Handle.InputEnded:Connect(function(Input)
 
-			if Input.UserInputType ==
-				Enum.UserInputType.MouseButton1 then
+		if Input.UserInputType ==
+			Enum.UserInputType.MouseButton1 then
 
-				Dragging = false
-
-			end
+			Dragging = false
 		end
-	)
+	end)
 
-	UIS.InputChanged:Connect(
-		function(Input)
+	UIS.InputChanged:Connect(function(Input)
 
-			if not Dragging then
-				return
-			end
-
-			if Input.UserInputType ~=
-				Enum.UserInputType.MouseMovement then
-				return
-			end
-
-			local Delta =
-				Input.Position -
-				DragStart
-
-			Object.Position =
-				UDim2.new(
-
-					StartPosition.X.Scale,
-					StartPosition.X.Offset +
-						Delta.X,
-
-					StartPosition.Y.Scale,
-					StartPosition.Y.Offset +
-						Delta.Y
-				)
+		if not Dragging then
+			return
 		end
-	)
+
+		if Input.UserInputType ~=
+			Enum.UserInputType.MouseMovement then
+
+			return
+		end
+
+		local Delta =
+			Input.Position -
+			DragStart
+
+		Object.Position =
+			UDim2.new(
+
+				StartPosition.X.Scale,
+
+				StartPosition.X.Offset +
+				Delta.X,
+
+				StartPosition.Y.Scale,
+
+				StartPosition.Y.Offset +
+				Delta.Y
+			)
+	end)
 end
 
 --========================================================--
@@ -849,12 +544,11 @@ local function CreateFox(
 		Position
 
 	Fox.BackgroundTransparency = 1
+
 	Fox.Text = "🦊"
 
 	Fox.TextSize =
-		math.floor(
-			Size * 0.72
-		)
+		math.floor(Size * 0.72)
 
 	Fox.Font =
 		Enum.Font.GothamBlack
@@ -883,10 +577,7 @@ local Loading =
 	Instance.new("Frame")
 
 Loading.Size =
-	UDim2.fromScale(
-		1,
-		1
-	)
+	UDim2.fromScale(1, 1)
 
 Loading.BackgroundColor3 =
 	C.Background
@@ -917,6 +608,7 @@ LoadingGradient.Color =
 			1,
 			Color3.fromRGB(7, 9, 16)
 		)
+
 	})
 
 LoadingGradient.Parent =
@@ -930,52 +622,21 @@ local LoadingFoxes = {}
 
 local FoxPositions = {
 
-	UDim2.new(
-		0,
-		60,
-		0.5,
-		-40
-	),
+	UDim2.new(0, 60, 0.5, -40),
 
-	UDim2.new(
-		1,
-		-120,
-		0.5,
-		-80
-	),
+	UDim2.new(1, -120, 0.5, -80),
 
-	UDim2.new(
-		0.18,
-		0,
-		0,
-		90
-	),
+	UDim2.new(0.18, 0, 0, 90),
 
-	UDim2.new(
-		0.78,
-		0,
-		0,
-		75
-	),
+	UDim2.new(0.78, 0, 0, 75),
 
-	UDim2.new(
-		0.10,
-		0,
-		1,
-		-150
-	),
+	UDim2.new(0.10, 0, 1, -150),
 
-	UDim2.new(
-		0.82,
-		0,
-		1,
-		-160
-	)
+	UDim2.new(0.82, 0, 1, -160)
+
 }
 
-for _, Position in ipairs(
-	FoxPositions
-) do
+for _, Position in ipairs(FoxPositions) do
 
 	local Fox =
 		CreateFox(
@@ -985,8 +646,7 @@ for _, Position in ipairs(
 			1001
 		)
 
-	Fox.TextTransparency =
-		0.15
+	Fox.TextTransparency = 0.15
 
 	table.insert(
 		LoadingFoxes,
@@ -1000,14 +660,9 @@ task.spawn(function()
 
 	while Loading.Parent do
 
-		Offset +=
-			task.wait(
-				0.03
-			)
+		Offset += task.wait(0.03)
 
-		for Index, Fox in ipairs(
-			LoadingFoxes
-		) do
+		for Index, Fox in ipairs(LoadingFoxes) do
 
 			local Base =
 				FoxPositions[Index]
@@ -1039,76 +694,42 @@ local LoadingCard =
 	Instance.new("Frame")
 
 LoadingCard.Size =
-	UDim2.fromOffset(
-		440,
-		260
-	)
+	UDim2.fromOffset(440, 260)
 
 LoadingCard.AnchorPoint =
-	Vector2.new(
-		0.5,
-		0.5
-	)
+	Vector2.new(0.5, 0.5)
 
 LoadingCard.Position =
-	UDim2.fromScale(
-		0.5,
-		0.5
-	)
+	UDim2.fromScale(0.5, 0.5)
 
 LoadingCard.BackgroundColor3 =
-	Color3.fromRGB(
-		13,
-		14,
-		21
-	)
+	Color3.fromRGB(13, 14, 21)
 
-LoadingCard.BackgroundTransparency =
-	0.03
+LoadingCard.BackgroundTransparency = 0.03
 
 LoadingCard.BorderSizePixel = 0
 LoadingCard.ZIndex = 1010
 LoadingCard.Parent = Loading
 
-Corner(
-	LoadingCard,
-	22
-)
+Corner(LoadingCard, 22)
 
 AddStroke(
 	LoadingCard,
-	Color3.fromRGB(
-		130,
-		90,
-		180
-	),
+	Color3.fromRGB(130, 90, 180),
 	1,
 	0.2
 )
-
---========================================================--
--- LOADING TITLE
---========================================================--
 
 local LoadingTitle =
 	Instance.new("TextLabel")
 
 LoadingTitle.Size =
-	UDim2.new(
-		1,
-		0,
-		0,
-		65
-	)
+	UDim2.new(1, 0, 0, 65)
 
 LoadingTitle.Position =
-	UDim2.fromOffset(
-		0,
-		42
-	)
+	UDim2.fromOffset(0, 42)
 
-LoadingTitle.BackgroundTransparency =
-	1
+LoadingTitle.BackgroundTransparency = 1
 
 LoadingTitle.Text =
 	"MK HUB v2.0"
@@ -1116,17 +737,13 @@ LoadingTitle.Text =
 LoadingTitle.TextColor3 =
 	C.White
 
-LoadingTitle.TextSize =
-	38
+LoadingTitle.TextSize = 38
 
 LoadingTitle.Font =
 	Enum.Font.GothamBlack
 
-LoadingTitle.ZIndex =
-	1012
-
-LoadingTitle.Parent =
-	LoadingCard
+LoadingTitle.ZIndex = 1012
+LoadingTitle.Parent = LoadingCard
 
 local TitleGradient =
 	Instance.new("UIGradient")
@@ -1148,34 +765,22 @@ TitleGradient.Color =
 			1,
 			C.Blue
 		)
+
 	})
 
 TitleGradient.Parent =
 	LoadingTitle
 
---========================================================--
--- LOADING STATUS
---========================================================--
-
 local LoadingStatus =
 	Instance.new("TextLabel")
 
 LoadingStatus.Size =
-	UDim2.new(
-		1,
-		0,
-		0,
-		25
-	)
+	UDim2.new(1, 0, 0, 25)
 
 LoadingStatus.Position =
-	UDim2.fromOffset(
-		0,
-		103
-	)
+	UDim2.fromOffset(0, 103)
 
-LoadingStatus.BackgroundTransparency =
-	1
+LoadingStatus.BackgroundTransparency = 1
 
 LoadingStatus.Text =
 	"Loading..."
@@ -1183,78 +788,46 @@ LoadingStatus.Text =
 LoadingStatus.TextColor3 =
 	C.Gray
 
-LoadingStatus.TextSize =
-	12
+LoadingStatus.TextSize = 12
 
 LoadingStatus.Font =
 	Enum.Font.Gotham
 
-LoadingStatus.ZIndex =
-	1012
-
-LoadingStatus.Parent =
-	LoadingCard
-
---========================================================--
--- PROGRESS
---========================================================--
+LoadingStatus.ZIndex = 1012
+LoadingStatus.Parent = LoadingCard
 
 local ProgressBack =
 	Instance.new("Frame")
 
 ProgressBack.Size =
-	UDim2.fromOffset(
-		330,
-		8
-	)
+	UDim2.fromOffset(330, 8)
 
 ProgressBack.Position =
-	UDim2.new(
-		0.5,
-		-165,
-		0,
-		145
-	)
+	UDim2.new(0.5, -165, 0, 145)
 
 ProgressBack.BackgroundColor3 =
-	Color3.fromRGB(
-		37,
-		38,
-		48
-	)
+	Color3.fromRGB(37, 38, 48)
 
 ProgressBack.BorderSizePixel = 0
 ProgressBack.ZIndex = 1012
 ProgressBack.Parent = LoadingCard
 
-Corner(
-	ProgressBack,
-	10
-)
+Corner(ProgressBack, 10)
 
 local Progress =
 	Instance.new("Frame")
 
 Progress.Size =
-	UDim2.new(
-		0,
-		0,
-		1,
-		0
-	)
+	UDim2.new(0, 0, 1, 0)
 
 Progress.BackgroundColor3 =
 	C.Purple
 
 Progress.BorderSizePixel = 0
 Progress.ZIndex = 1013
-Progress.Parent =
-	ProgressBack
+Progress.Parent = ProgressBack
 
-Corner(
-	Progress,
-	10
-)
+Corner(Progress, 10)
 
 local ProgressGradient =
 	Instance.new("UIGradient")
@@ -1276,6 +849,7 @@ ProgressGradient.Color =
 			1,
 			C.Pink
 		)
+
 	})
 
 ProgressGradient.Parent =
@@ -1296,11 +870,10 @@ task.spawn(function()
 		0.75,
 		0.90,
 		1
+
 	}
 
-	for _, Target in ipairs(
-		Steps
-	) do
+	for _, Target in ipairs(Steps) do
 
 		LoadingStatus.Text =
 			"Loading..."
@@ -1319,24 +892,19 @@ task.spawn(function()
 						0
 					)
 			}
+
 		):Play()
 
-		task.wait(
-			0.65
-		)
+		task.wait(0.65)
 	end
 
-	task.wait(
-		0.35
-	)
+	task.wait(0.35)
 
 	for _, Object in ipairs(
 		LoadingCard:GetDescendants()
 	) do
 
-		if Object:IsA(
-			"TextLabel"
-		) then
+		if Object:IsA("TextLabel") then
 
 			MakeTween(
 				Object,
@@ -1356,9 +924,7 @@ task.spawn(function()
 		}
 	):Play()
 
-	for _, Fox in ipairs(
-		LoadingFoxes
-	) do
+	for _, Fox in ipairs(LoadingFoxes) do
 
 		MakeTween(
 			Fox,
@@ -1377,12 +943,9 @@ task.spawn(function()
 		}
 	):Play()
 
-	task.wait(
-		0.55
-	)
+	task.wait(0.55)
 
 	Loading:Destroy()
-
 end)
 
 --========================================================--
@@ -1393,41 +956,31 @@ local HubButton =
 	Instance.new("TextButton")
 
 HubButton.Size =
-	UDim2.fromOffset(
-		64,
-		64
-	)
+	UDim2.fromOffset(64, 64)
 
 HubButton.Position =
-	UDim2.new(
-		0,
-		20,
-		0.5,
-		-32
-	)
+	UDim2.new(0, 20, 0.5, -32)
 
 HubButton.BackgroundColor3 =
 	C.Panel2
 
 HubButton.BorderSizePixel = 0
+
 HubButton.Text = "MK"
 
 HubButton.TextColor3 =
 	C.White
 
-HubButton.TextSize =
-	16
+HubButton.TextSize = 16
 
 HubButton.Font =
 	Enum.Font.GothamBlack
 
 HubButton.Visible = false
+
 HubButton.Parent = Gui
 
-Corner(
-	HubButton,
-	32
-)
+Corner(HubButton, 32)
 
 AddStroke(
 	HubButton,
@@ -1449,10 +1002,7 @@ local Main =
 	Instance.new("Frame")
 
 Main.Size =
-	UDim2.fromOffset(
-		400,
-		510
-	)
+	UDim2.fromOffset(400, 510)
 
 Main.Position =
 	UDim2.new(
@@ -1470,18 +1020,11 @@ Main.Visible = false
 Main.ClipsDescendants = true
 Main.Parent = Gui
 
-Corner(
-	Main,
-	22
-)
+Corner(Main, 22)
 
 AddStroke(
 	Main,
-	Color3.fromRGB(
-		90,
-		78,
-		120
-	),
+	Color3.fromRGB(90, 78, 120),
 	1,
 	0.1
 )
@@ -1494,49 +1037,30 @@ local MenuGlow =
 	Instance.new("Frame")
 
 MenuGlow.Size =
-	UDim2.new(
-		1,
-		0,
-		0,
-		120
-	)
+	UDim2.new(1, 0, 0, 120)
 
 MenuGlow.BackgroundColor3 =
-	Color3.fromRGB(
-		36,
-		23,
-		52
-	)
+	Color3.fromRGB(36, 23, 52)
 
-MenuGlow.BackgroundTransparency =
-	0.25
+MenuGlow.BackgroundTransparency = 0.25
 
 MenuGlow.BorderSizePixel = 0
 MenuGlow.Parent = Main
 
-Corner(
-	MenuGlow,
-	22
-)
+Corner(MenuGlow, 22)
 
 local MenuGlowGradient =
 	Instance.new("UIGradient")
 
-MenuGlowGradient.Rotation =
-	90
+MenuGlowGradient.Rotation = 90
 
 MenuGlowGradient.Transparency =
 	NumberSequence.new({
 
-		NumberSequenceKeypoint.new(
-			0,
-			0
-		),
+		NumberSequenceKeypoint.new(0, 0),
 
-		NumberSequenceKeypoint.new(
-			1,
-			1
-		)
+		NumberSequenceKeypoint.new(1, 1)
+
 	})
 
 MenuGlowGradient.Parent =
@@ -1549,18 +1073,12 @@ MenuGlowGradient.Parent =
 local MenuFox =
 	CreateFox(
 		Main,
-		UDim2.new(
-			1,
-			-95,
-			0,
-			8
-		),
+		UDim2.new(1, -95, 0, 8),
 		75,
 		20
 	)
 
-MenuFox.TextSize =
-	54
+MenuFox.TextSize = 54
 
 task.spawn(function()
 
@@ -1580,9 +1098,7 @@ task.spawn(function()
 			}
 		):Play()
 
-		task.wait(
-			0.9
-		)
+		task.wait(0.9)
 
 		MakeTween(
 			MenuFox,
@@ -1598,9 +1114,7 @@ task.spawn(function()
 			}
 		):Play()
 
-		task.wait(
-			0.9
-		)
+		task.wait(0.9)
 	end
 end)
 
@@ -1612,21 +1126,12 @@ local Header =
 	Instance.new("TextButton")
 
 Header.Size =
-	UDim2.new(
-		1,
-		-115,
-		0,
-		55
-	)
+	UDim2.new(1, -115, 0, 55)
 
 Header.Position =
-	UDim2.fromOffset(
-		16,
-		10
-	)
+	UDim2.fromOffset(16, 10)
 
-Header.BackgroundTransparency =
-	1
+Header.BackgroundTransparency = 1
 
 Header.Text =
 	"MK HUB v2.0"
@@ -1634,8 +1139,7 @@ Header.Text =
 Header.TextColor3 =
 	C.White
 
-Header.TextSize =
-	20
+Header.TextSize = 20
 
 Header.Font =
 	Enum.Font.GothamBlack
@@ -1643,11 +1147,9 @@ Header.Font =
 Header.TextXAlignment =
 	Enum.TextXAlignment.Left
 
-Header.AutoButtonColor =
-	false
+Header.AutoButtonColor = false
 
-Header.Parent =
-	Main
+Header.Parent = Main
 
 MakeDraggable(
 	Main,
@@ -1662,24 +1164,14 @@ local TabBar =
 	Instance.new("Frame")
 
 TabBar.Size =
-	UDim2.new(
-		1,
-		-30,
-		0,
-		42
-	)
+	UDim2.new(1, -30, 0, 42)
 
 TabBar.Position =
-	UDim2.fromOffset(
-		15,
-		72
-	)
+	UDim2.fromOffset(15, 72)
 
-TabBar.BackgroundTransparency =
-	1
+TabBar.BackgroundTransparency = 1
 
-TabBar.Parent =
-	Main
+TabBar.Parent = Main
 
 --========================================================--
 -- TAB 1
@@ -1689,22 +1181,12 @@ local Tab1 =
 	Instance.new("TextButton")
 
 Tab1.Size =
-	UDim2.new(
-		0.5,
-		-5,
-		1,
-		0
-	)
+	UDim2.new(0.5, -5, 1, 0)
 
 Tab1.BackgroundColor3 =
-	Color3.fromRGB(
-		68,
-		48,
-		98
-	)
+	Color3.fromRGB(68, 48, 98)
 
-Tab1.BorderSizePixel =
-	0
+Tab1.BorderSizePixel = 0
 
 Tab1.Text =
 	"MAIN"
@@ -1712,74 +1194,51 @@ Tab1.Text =
 Tab1.TextColor3 =
 	C.White
 
-Tab1.TextSize =
-	11
+Tab1.TextSize = 11
 
 Tab1.Font =
 	Enum.Font.GothamBold
 
-Tab1.AutoButtonColor =
-	false
+Tab1.AutoButtonColor = false
 
-Tab1.Parent =
-	TabBar
+Tab1.Parent = TabBar
 
-Corner(
-	Tab1,
-	10
-)
+Corner(Tab1, 10)
 
 --========================================================--
--- TAB 2
+-- TAB 2 = TOOL
 --========================================================--
 
 local Tab2 =
 	Instance.new("TextButton")
 
 Tab2.Size =
-	UDim2.new(
-		0.5,
-		-5,
-		1,
-		0
-	)
+	UDim2.new(0.5, -5, 1, 0)
 
 Tab2.Position =
-	UDim2.new(
-		0.5,
-		5,
-		0,
-		0
-	)
+	UDim2.new(0.5, 5, 0, 0)
 
 Tab2.BackgroundColor3 =
 	C.Button
 
-Tab2.BorderSizePixel =
-	0
+Tab2.BorderSizePixel = 0
 
 Tab2.Text =
-	"FARM"
+	"TOOL"
 
 Tab2.TextColor3 =
 	C.White
 
-Tab2.TextSize =
-	11
+Tab2.TextSize = 11
 
 Tab2.Font =
 	Enum.Font.GothamBold
 
-Tab2.AutoButtonColor =
-	false
+Tab2.AutoButtonColor = false
 
-Tab2.Parent =
-	TabBar
+Tab2.Parent = TabBar
 
-Corner(
-	Tab2,
-	10
-)
+Corner(Tab2, 10)
 
 --========================================================--
 -- PAGES
@@ -1789,50 +1248,29 @@ local MainPage =
 	Instance.new("Frame")
 
 MainPage.Size =
-	UDim2.new(
-		1,
-		0,
-		1,
-		-125
-	)
+	UDim2.new(1, 0, 1, -125)
 
 MainPage.Position =
-	UDim2.fromOffset(
-		0,
-		125
-	)
+	UDim2.fromOffset(0, 125)
 
-MainPage.BackgroundTransparency =
-	1
+MainPage.BackgroundTransparency = 1
 
-MainPage.Parent =
-	Main
+MainPage.Parent = Main
 
 local FarmPage =
 	Instance.new("Frame")
 
 FarmPage.Size =
-	UDim2.new(
-		1,
-		0,
-		1,
-		-125
-	)
+	UDim2.new(1, 0, 1, -125)
 
 FarmPage.Position =
-	UDim2.fromOffset(
-		0,
-		125
-	)
+	UDim2.fromOffset(0, 125)
 
-FarmPage.BackgroundTransparency =
-	1
+FarmPage.BackgroundTransparency = 1
 
-FarmPage.Visible =
-	false
+FarmPage.Visible = false
 
-FarmPage.Parent =
-	Main
+FarmPage.Parent = Main
 
 --========================================================--
 -- FEATURE BUTTON
@@ -1849,22 +1287,15 @@ local function FeatureButton(
 		Instance.new("TextButton")
 
 	Button.Size =
-		UDim2.fromOffset(
-			175,
-			40
-		)
+		UDim2.fromOffset(175, 40)
 
 	Button.Position =
-		UDim2.fromOffset(
-			X,
-			Y
-		)
+		UDim2.fromOffset(X, Y)
 
 	Button.BackgroundColor3 =
 		C.Button
 
-	Button.BorderSizePixel =
-		0
+	Button.BorderSizePixel = 0
 
 	Button.Text =
 		Text
@@ -1872,22 +1303,17 @@ local function FeatureButton(
 	Button.TextColor3 =
 		C.White
 
-	Button.TextSize =
-		10
+	Button.TextSize = 10
 
 	Button.Font =
 		Enum.Font.GothamBold
 
-	Button.AutoButtonColor =
-		false
+	Button.AutoButtonColor = false
 
 	Button.Parent =
 		Parent or MainPage
 
-	Corner(
-		Button,
-		10
-	)
+	Corner(Button, 10)
 
 	local S =
 		AddStroke(
@@ -1897,57 +1323,51 @@ local function FeatureButton(
 			0.35
 		)
 
-	Button.MouseEnter:Connect(
-		function()
+	Button.MouseEnter:Connect(function()
 
-			MakeTween(
-				Button,
-				0.12,
-				{
-					BackgroundColor3 =
-						C.ButtonHover
-				}
-			):Play()
+		MakeTween(
+			Button,
+			0.12,
+			{
+				BackgroundColor3 =
+					C.ButtonHover
+			}
+		):Play()
 
-			MakeTween(
-				S,
-				0.12,
-				{
-					Transparency = 0
-				}
-			):Play()
+		MakeTween(
+			S,
+			0.12,
+			{
+				Transparency = 0
+			}
+		):Play()
+	end)
 
-		end
-	)
+	Button.MouseLeave:Connect(function()
 
-	Button.MouseLeave:Connect(
-		function()
+		MakeTween(
+			Button,
+			0.12,
+			{
+				BackgroundColor3 =
+					C.Button
+			}
+		):Play()
 
-			MakeTween(
-				Button,
-				0.12,
-				{
-					BackgroundColor3 =
-						C.Button
-				}
-			):Play()
-
-			MakeTween(
-				S,
-				0.12,
-				{
-					Transparency = 0.35
-				}
-			):Play()
-
-		end
-	)
+		MakeTween(
+			S,
+			0.12,
+			{
+				Transparency = 0.35
+			}
+		):Play()
+	end)
 
 	return Button
 end
 
 --========================================================--
--- TAB 1 - ORIGINAL BUTTONS
+-- MAIN BUTTONS
 --========================================================--
 
 local SpeedButton =
@@ -1995,19 +1415,12 @@ local function MakeSlider(
 		Instance.new("TextLabel")
 
 	Label.Size =
-		UDim2.fromOffset(
-			200,
-			22
-		)
+		UDim2.fromOffset(200, 22)
 
 	Label.Position =
-		UDim2.fromOffset(
-			15,
-			Y
-		)
+		UDim2.fromOffset(15, Y)
 
-	Label.BackgroundTransparency =
-		1
+	Label.BackgroundTransparency = 1
 
 	Label.Text =
 		Title
@@ -2015,8 +1428,7 @@ local function MakeSlider(
 	Label.TextColor3 =
 		C.Gray
 
-	Label.TextSize =
-		10
+	Label.TextSize = 10
 
 	Label.Font =
 		Enum.Font.GothamBold
@@ -2031,59 +1443,36 @@ local function MakeSlider(
 		Instance.new("Frame")
 
 	Track.Size =
-		UDim2.fromOffset(
-			260,
-			7
-		)
+		UDim2.fromOffset(260, 7)
 
 	Track.Position =
-		UDim2.fromOffset(
-			15,
-			Y + 27
-		)
+		UDim2.fromOffset(15, Y + 27)
 
 	Track.BackgroundColor3 =
-		Color3.fromRGB(
-			39,
-			40,
-			50
-		)
+		Color3.fromRGB(39, 40, 50)
 
-	Track.BorderSizePixel =
-		0
+	Track.BorderSizePixel = 0
 
 	Track.Parent =
 		MainPage
 
-	Corner(
-		Track,
-		10
-	)
+	Corner(Track, 10)
 
 	local Fill =
 		Instance.new("Frame")
 
 	Fill.Size =
-		UDim2.new(
-			0,
-			0,
-			1,
-			0
-		)
+		UDim2.new(0, 0, 1, 0)
 
 	Fill.BackgroundColor3 =
 		C.Purple
 
-	Fill.BorderSizePixel =
-		0
+	Fill.BorderSizePixel = 0
 
 	Fill.Parent =
 		Track
 
-	Corner(
-		Fill,
-		10
-	)
+	Corner(Fill, 10)
 
 	local FillGradient =
 		Instance.new("UIGradient")
@@ -2100,6 +1489,7 @@ local function MakeSlider(
 				1,
 				C.Purple
 			)
+
 		})
 
 	FillGradient.Parent =
@@ -2109,36 +1499,22 @@ local function MakeSlider(
 		Instance.new("TextButton")
 
 	Knob.Size =
-		UDim2.fromOffset(
-			18,
-			18
-		)
+		UDim2.fromOffset(18, 18)
 
 	Knob.AnchorPoint =
-		Vector2.new(
-			0.5,
-			0.5
-		)
+		Vector2.new(0.5, 0.5)
 
 	Knob.BackgroundColor3 =
-		Color3.fromRGB(
-			250,
-			250,
-			255
-		)
+		Color3.fromRGB(250, 250, 255)
 
-	Knob.BorderSizePixel =
-		0
+	Knob.BorderSizePixel = 0
 
 	Knob.Text = ""
 
 	Knob.Parent =
 		Track
 
-	Corner(
-		Knob,
-		20
-	)
+	Corner(Knob, 20)
 
 	AddStroke(
 		Knob,
@@ -2151,47 +1527,33 @@ local function MakeSlider(
 		Instance.new("TextBox")
 
 	Input.Size =
-		UDim2.fromOffset(
-			75,
-			31
-		)
+		UDim2.fromOffset(75, 31)
 
 	Input.Position =
-		UDim2.fromOffset(
-			300,
-			Y - 5
-		)
+		UDim2.fromOffset(300, Y - 5)
 
 	Input.BackgroundColor3 =
 		C.Button
 
-	Input.BorderSizePixel =
-		0
+	Input.BorderSizePixel = 0
 
 	Input.Text =
-		tostring(
-			DefaultValue
-		)
+		tostring(DefaultValue)
 
 	Input.TextColor3 =
 		C.White
 
-	Input.TextSize =
-		11
+	Input.TextSize = 11
 
 	Input.Font =
 		Enum.Font.GothamBold
 
-	Input.ClearTextOnFocus =
-		false
+	Input.ClearTextOnFocus = false
 
 	Input.Parent =
 		MainPage
 
-	Corner(
-		Input,
-		8
-	)
+	Corner(Input, 8)
 
 	AddStroke(
 		Input,
@@ -2206,29 +1568,20 @@ local function MakeSlider(
 	local function SetValue(Value)
 
 		Value =
-			tonumber(Value)
-			or Current
+			tonumber(Value) or Current
 
 		Value =
 			math.clamp(
-				math.floor(
-					Value + 0.5
-				),
+				math.floor(Value + 0.5),
 				Min,
 				Max
 			)
 
-		Current =
-			Value
+		Current = Value
 
 		local Percent =
-			(
-				Value - Min
-			)
-			/
-			(
-				Max - Min
-			)
+			(Value - Min) /
+			(Max - Min)
 
 		Fill.Size =
 			UDim2.new(
@@ -2266,21 +1619,14 @@ local function MakeSlider(
 
 		local Percent =
 			math.clamp(
-				(
-					X - Left
-				)
-				/
-				Width,
+				(X - Left) / Width,
 				0,
 				1
 			)
 
 		local Value =
 			Min +
-			(
-				Max - Min
-			)
-			*
+			(Max - Min) *
 			Percent
 
 		SetValue(Value)
@@ -2295,7 +1641,6 @@ local function MakeSlider(
 				SetFromMouse(
 					InputObject.Position.X
 				)
-
 			end
 		end
 	)
@@ -2322,7 +1667,6 @@ local function MakeSlider(
 							SetFromMouse(
 								Move.Position.X
 							)
-
 						end
 					end
 				)
@@ -2336,7 +1680,6 @@ local function MakeSlider(
 
 							Moving:Disconnect()
 							Released:Disconnect()
-
 						end
 					end
 				)
@@ -2347,24 +1690,24 @@ local function MakeSlider(
 		function()
 
 			local Number =
-				tonumber(
-					Input.Text
-				)
+				tonumber(Input.Text)
 
 			if Number then
+
 				SetValue(Number)
+
 			else
+
 				Input.Text =
 					tostring(Current)
 			end
 		end
 	)
 
-	SetValue(
-		DefaultValue
-	)
+	SetValue(DefaultValue)
 
 	return {
+
 		Set = SetValue,
 
 		Get = function()
@@ -2374,7 +1717,7 @@ local function MakeSlider(
 end
 
 --========================================================--
--- ORIGINAL SLIDERS
+-- SLIDERS - TAB 1 UNCHANGED
 --========================================================--
 
 local SpeedSlider =
@@ -2384,20 +1727,12 @@ local SpeedSlider =
 		16,
 		200,
 		Settings.Speed,
-
 		function(Value)
 
-			Settings.Speed =
-				Value
+			Settings.Speed = Value
 
-			if
-				SpeedEnabled
-				and Humanoid
-			then
-
-				Humanoid.WalkSpeed =
-					Value
-
+			if SpeedEnabled and Humanoid then
+				Humanoid.WalkSpeed = Value
 			end
 		end
 	)
@@ -2409,20 +1744,12 @@ local JumpSlider =
 		50,
 		250,
 		Settings.Jump,
-
 		function(Value)
 
-			Settings.Jump =
-				Value
+			Settings.Jump = Value
 
-			if
-				JumpEnabled
-				and Humanoid
-			then
-
-				Humanoid.JumpPower =
-					Value
-
+			if JumpEnabled and Humanoid then
+				Humanoid.JumpPower = Value
 			end
 		end
 	)
@@ -2434,12 +1761,9 @@ local FlySlider =
 		20,
 		250,
 		Settings.FlySpeed,
-
 		function(Value)
 
-			Settings.FlySpeed =
-				Value
-
+			Settings.FlySpeed = Value
 		end
 	)
 
@@ -2447,72 +1771,63 @@ local FlySlider =
 -- SPEED
 --========================================================--
 
-SpeedButton.MouseButton1Click:Connect(
-	function()
+SpeedButton.MouseButton1Click:Connect(function()
 
-		SpeedEnabled =
-			not SpeedEnabled
+	SpeedEnabled =
+		not SpeedEnabled
 
-		if not Humanoid then
-			return
-		end
-
-		if SpeedEnabled then
-
-			Humanoid.WalkSpeed =
-				Settings.Speed
-
-			SpeedButton.Text =
-				"SPEED  :  ON"
-
-		else
-
-			Humanoid.WalkSpeed =
-				16
-
-			SpeedButton.Text =
-				"SPEED  :  OFF"
-
-		end
+	if not Humanoid then
+		return
 	end
-)
+
+	if SpeedEnabled then
+
+		Humanoid.WalkSpeed =
+			Settings.Speed
+
+		SpeedButton.Text =
+			"SPEED  :  ON"
+
+	else
+
+		Humanoid.WalkSpeed = 16
+
+		SpeedButton.Text =
+			"SPEED  :  OFF"
+	end
+end)
 
 --========================================================--
 -- HIGH JUMP
 --========================================================--
 
-JumpButton.MouseButton1Click:Connect(
-	function()
+JumpButton.MouseButton1Click:Connect(function()
 
-		JumpEnabled =
-			not JumpEnabled
+	JumpEnabled =
+		not JumpEnabled
 
-		if not Humanoid then
-			return
-		end
-
-		Humanoid.UseJumpPower =
-			true
-
-		if JumpEnabled then
-
-			Humanoid.JumpPower =
-				Settings.Jump
-
-			JumpButton.Text =
-				"HIGH JUMP  :  ON"
-
-		else
-
-			Humanoid.JumpPower =
-				50
-
-			JumpButton.Text =
-				"HIGH JUMP  :  OFF"
-
-		end
+	if not Humanoid then
+		return
 	end
-)
+
+	Humanoid.UseJumpPower = true
+
+	if JumpEnabled then
+
+		Humanoid.JumpPower =
+			Settings.Jump
+
+		JumpButton.Text =
+			"HIGH JUMP  :  ON"
+
+	else
+
+		Humanoid.JumpPower = 50
+
+		JumpButton.Text =
+			"HIGH JUMP  :  OFF"
+	end
+end)
 
 --========================================================--
 -- FLY
@@ -2526,14 +1841,12 @@ local function StopFly()
 
 		FlyConnection:Disconnect()
 		FlyConnection = nil
-
 	end
 
 	if FlyVelocity then
 
 		FlyVelocity:Destroy()
 		FlyVelocity = nil
-
 	end
 end
 
@@ -2546,9 +1859,7 @@ local function StartFly()
 	FlyEnabled = true
 
 	FlyVelocity =
-		Instance.new(
-			"BodyVelocity"
-		)
+		Instance.new("BodyVelocity")
 
 	FlyVelocity.MaxForce =
 		Vector3.new(
@@ -2567,17 +1878,14 @@ local function StartFly()
 		RunService.RenderStepped:Connect(
 			function()
 
-				if
-					not FlyEnabled
-					or not Root
-				then
+				if not FlyEnabled or not Root then
 					return
 				end
 
-				local Camera =
+				local CurrentCamera =
 					workspace.CurrentCamera
 
-				if not Camera then
+				if not CurrentCamera then
 					return
 				end
 
@@ -2589,8 +1897,7 @@ local function StartFly()
 				) then
 
 					Direction +=
-						Camera.CFrame.LookVector
-
+						CurrentCamera.CFrame.LookVector
 				end
 
 				if UIS:IsKeyDown(
@@ -2598,8 +1905,7 @@ local function StartFly()
 				) then
 
 					Direction -=
-						Camera.CFrame.LookVector
-
+						CurrentCamera.CFrame.LookVector
 				end
 
 				if UIS:IsKeyDown(
@@ -2607,8 +1913,7 @@ local function StartFly()
 				) then
 
 					Direction -=
-						Camera.CFrame.RightVector
-
+						CurrentCamera.CFrame.RightVector
 				end
 
 				if UIS:IsKeyDown(
@@ -2616,8 +1921,7 @@ local function StartFly()
 				) then
 
 					Direction +=
-						Camera.CFrame.RightVector
-
+						CurrentCamera.CFrame.RightVector
 				end
 
 				if UIS:IsKeyDown(
@@ -2625,12 +1929,7 @@ local function StartFly()
 				) then
 
 					Direction +=
-						Vector3.new(
-							0,
-							1,
-							0
-						)
-
+						Vector3.new(0, 1, 0)
 				end
 
 				if UIS:IsKeyDown(
@@ -2638,12 +1937,7 @@ local function StartFly()
 				) then
 
 					Direction -=
-						Vector3.new(
-							0,
-							1,
-							0
-						)
-
+						Vector3.new(0, 1, 0)
 				end
 
 				if Direction.Magnitude > 0 then
@@ -2656,32 +1950,28 @@ local function StartFly()
 
 					FlyVelocity.Velocity =
 						Vector3.zero
-
 				end
 			end
 		)
 end
 
-FlyButton.MouseButton1Click:Connect(
-	function()
+FlyButton.MouseButton1Click:Connect(function()
 
-		if FlyEnabled then
+	if FlyEnabled then
 
-			StopFly()
+		StopFly()
 
-			FlyButton.Text =
-				"FLY  :  OFF"
+		FlyButton.Text =
+			"FLY  :  OFF"
 
-		else
+	else
 
-			StartFly()
+		StartFly()
 
-			FlyButton.Text =
-				"FLY  :  ON"
-
-		end
+		FlyButton.Text =
+			"FLY  :  ON"
 	end
-)
+end)
 
 --========================================================--
 -- NOCLIP
@@ -2695,7 +1985,6 @@ local function StopNoClip()
 
 		NoClipConnection:Disconnect()
 		NoClipConnection = nil
-
 	end
 
 	if Character then
@@ -2707,7 +1996,6 @@ local function StopNoClip()
 			if Object:IsA("BasePart") then
 				Object.CanCollide = true
 			end
-
 		end
 	end
 end
@@ -2735,32 +2023,28 @@ local function StartNoClip()
 					if Object:IsA("BasePart") then
 						Object.CanCollide = false
 					end
-
 				end
 			end
 		)
 end
 
-NoClipButton.MouseButton1Click:Connect(
-	function()
+NoClipButton.MouseButton1Click:Connect(function()
 
-		if NoClipEnabled then
+	if NoClipEnabled then
 
-			StopNoClip()
+		StopNoClip()
 
-			NoClipButton.Text =
-				"NOCLIP  :  OFF"
+		NoClipButton.Text =
+			"NOCLIP  :  OFF"
 
-		else
+	else
 
-			StartNoClip()
+		StartNoClip()
 
-			NoClipButton.Text =
-				"NOCLIP  :  ON"
-
-		end
+		NoClipButton.Text =
+			"NOCLIP  :  ON"
 	end
-)
+end)
 
 --========================================================--
 -- TELEPORT
@@ -2773,43 +2057,312 @@ local Teleport =
 		300
 	)
 
-Teleport.MouseButton1Click:Connect(
-	function()
+Teleport.MouseButton1Click:Connect(function()
 
-		if not Root then
-			return
-		end
+	if not Root then
+		return
+	end
 
-		local Spawn
+	local Spawn
 
-		for _, Object in ipairs(
-			workspace:GetDescendants()
-		) do
+	for _, Object in ipairs(
+		workspace:GetDescendants()
+	) do
 
-			if Object:IsA(
-				"SpawnLocation"
-			) then
+		if Object:IsA("SpawnLocation") then
 
-				Spawn =
-					Object
-
-				break
-			end
-		end
-
-		if Spawn then
-
-			Root.CFrame =
-				Spawn.CFrame +
-				Vector3.new(
-					0,
-					5,
-					0
-				)
-
+			Spawn = Object
+			break
 		end
 	end
+
+	if Spawn then
+
+		Root.CFrame =
+			Spawn.CFrame +
+			Vector3.new(0, 5, 0)
+	end
+end)
+
+--========================================================--
+-- AIM FOV
+--========================================================--
+
+local FOVCircle =
+	Instance.new("Frame")
+
+FOVCircle.Name =
+	"MK_AimFOV"
+
+FOVCircle.AnchorPoint =
+	Vector2.new(0.5, 0.5)
+
+FOVCircle.Position =
+	UDim2.fromScale(0.5, 0.5)
+
+FOVCircle.Size =
+	UDim2.fromOffset(
+		Settings.AimFOV * 2,
+		Settings.AimFOV * 2
+	)
+
+FOVCircle.BackgroundTransparency = 1
+
+FOVCircle.BorderSizePixel = 0
+
+FOVCircle.Visible = false
+
+FOVCircle.ZIndex = 50
+
+FOVCircle.Parent = Gui
+
+Corner(
+	FOVCircle,
+	999
 )
+
+local FOVStroke =
+	AddStroke(
+		FOVCircle,
+		C.Purple,
+		1,
+		0.15
+	)
+
+--========================================================--
+-- KEEP FOV CENTERED
+--========================================================--
+
+local function UpdateFOV()
+
+	FOVCircle.Size =
+		UDim2.fromOffset(
+			Settings.AimFOV * 2,
+			Settings.AimFOV * 2
+		)
+
+	-- Quan trọng:
+	-- FOV luôn nằm giữa màn hình.
+	-- Không lấy Mouse.X / Mouse.Y.
+	FOVCircle.Position =
+		UDim2.fromScale(
+			0.5,
+			0.5
+		)
+end
+
+--========================================================--
+-- TARGET VALIDATION
+--========================================================--
+
+local function IsValidTarget(Target)
+
+	if not Target then
+		return false
+	end
+
+	if Target == Player then
+		return false
+	end
+
+	if not Target.Parent then
+		return false
+	end
+
+	local TargetCharacter =
+		Target.Character
+
+	if not TargetCharacter then
+		return false
+	end
+
+	local TargetHumanoid =
+		TargetCharacter:FindFirstChildOfClass(
+			"Humanoid"
+		)
+
+	local TargetHead =
+		TargetCharacter:FindFirstChild(
+			"Head"
+		)
+
+	if not TargetHumanoid then
+		return false
+	end
+
+	if not TargetHead then
+		return false
+	end
+
+	if TargetHumanoid.Health <= 0 then
+		return false
+	end
+
+	return true
+end
+
+--========================================================--
+-- GET TARGET INSIDE CENTER FOV
+--========================================================--
+
+local function GetClosestTargetInFOV()
+
+	if not Camera then
+		Camera = workspace.CurrentCamera
+	end
+
+	if not Camera then
+		return nil
+	end
+
+	local Viewport =
+		Camera.ViewportSize
+
+	local Center =
+		Vector2.new(
+			Viewport.X / 2,
+			Viewport.Y / 2
+		)
+
+	local BestTarget = nil
+	local BestDistance = math.huge
+
+	for _, OtherPlayer in ipairs(
+		Players:GetPlayers()
+	) do
+
+		if OtherPlayer ~= Player
+			and IsValidTarget(OtherPlayer) then
+
+			local CharacterObject =
+				OtherPlayer.Character
+
+			local Head =
+				CharacterObject:FindFirstChild(
+					"Head"
+				)
+
+			local ScreenPosition,
+				OnScreen =
+				Camera:WorldToViewportPoint(
+					Head.Position
+				)
+
+			if OnScreen then
+
+				local ScreenPoint =
+					Vector2.new(
+						ScreenPosition.X,
+						ScreenPosition.Y
+					)
+
+				local Distance =
+					(ScreenPoint - Center).Magnitude
+
+				if Distance <= Settings.AimFOV
+					and Distance < BestDistance then
+
+					BestDistance =
+						Distance
+
+					BestTarget =
+						OtherPlayer
+				end
+			end
+		end
+	end
+
+	return BestTarget
+end
+
+--========================================================--
+-- AIMLOCK
+--========================================================--
+
+local function StopAimLock()
+
+	AimLockEnabled = false
+
+	if AimLockConnection then
+
+		AimLockConnection:Disconnect()
+
+		AimLockConnection = nil
+	end
+
+	if Camera then
+
+		Camera.CameraType =
+			Enum.CameraType.Custom
+	end
+end
+
+local function StartAimLock()
+
+	if AimLockEnabled then
+		return
+	end
+
+	AimLockEnabled = true
+
+	AimLockConnection =
+		RunService.RenderStepped:Connect(
+			function()
+
+				if not AimLockEnabled then
+					return
+				end
+
+				Camera =
+					workspace.CurrentCamera
+
+				if not Camera then
+					return
+				end
+
+				-- Nếu target được chọn nhưng đã chết
+				-- hoặc rời game thì tìm target mới.
+				if not IsValidTarget(
+					SelectedTarget
+				) then
+
+					SelectedTarget =
+						GetClosestTargetInFOV()
+				end
+
+				if not SelectedTarget then
+
+					SelectedTarget =
+						GetClosestTargetInFOV()
+				end
+
+				if not SelectedTarget then
+					return
+				end
+
+				local TargetCharacter =
+					SelectedTarget.Character
+
+				local TargetHead =
+					TargetCharacter
+					and TargetCharacter:FindFirstChild(
+						"Head"
+					)
+
+				if not TargetHead then
+					return
+				end
+
+				-- AimLock vào Head.
+				-- Không di chuyển FOV.
+				Camera.CFrame =
+					CFrame.lookAt(
+						Camera.CFrame.Position,
+						TargetHead.Position
+					)
+			end
+		)
+end
 
 --========================================================--
 -- RESET
@@ -2822,38 +2375,121 @@ local Reset =
 		300
 	)
 
+local ESPButton
+
+local AimLockButton
+local TargetButton
+
+local function ResetEverything()
+
+	StopFly()
+	StopNoClip()
+	StopESP()
+	StopAimLock()
+
+	SpeedEnabled = false
+	JumpEnabled = false
+	FlyEnabled = false
+	NoClipEnabled = false
+	ESPEnabled = false
+	AimLockEnabled = false
+
+	SelectedTarget = nil
+
+	Settings.Speed =
+		DEFAULT.Speed
+
+	Settings.Jump =
+		DEFAULT.Jump
+
+	Settings.FlySpeed =
+		DEFAULT.FlySpeed
+
+	Settings.AimFOV =
+		DEFAULT.AimFOV
+
+	if Humanoid then
+
+		Humanoid.WalkSpeed = 16
+
+		Humanoid.UseJumpPower = true
+
+		Humanoid.JumpPower = 50
+	end
+
+	SpeedButton.Text =
+		"SPEED  :  OFF"
+
+	JumpButton.Text =
+		"HIGH JUMP  :  OFF"
+
+	FlyButton.Text =
+		"FLY  :  OFF"
+
+	NoClipButton.Text =
+		"NOCLIP  :  OFF"
+
+	if ESPButton then
+
+		ESPButton.Text =
+			"ESP  :  OFF"
+	end
+
+	if AimLockButton then
+
+		AimLockButton.Text =
+			"AIMLOCK  :  OFF"
+	end
+
+	if TargetButton then
+
+		TargetButton.Text =
+			"TARGET  :  AUTO"
+	end
+
+	SpeedSlider.Set(
+		DEFAULT.Speed
+	)
+
+	JumpSlider.Set(
+		DEFAULT.Jump
+	)
+
+	FlySlider.Set(
+		DEFAULT.FlySpeed
+	)
+
+	UpdateFOV()
+
+	FOVCircle.Visible = false
+end
+
+Reset.MouseButton1Click:Connect(
+	ResetEverything
+)
+
 --========================================================--
--- TAB 2 - ESP + AIMLOCK
+-- TOOL TAB
 --========================================================--
 
 local FarmTitle =
 	Instance.new("TextLabel")
 
 FarmTitle.Size =
-	UDim2.new(
-		1,
-		-30,
-		0,
-		35
-	)
+	UDim2.new(1, -30, 0, 35)
 
 FarmTitle.Position =
-	UDim2.fromOffset(
-		15,
-		8
-	)
+	UDim2.fromOffset(15, 8)
 
-FarmTitle.BackgroundTransparency =
-	1
+FarmTitle.BackgroundTransparency = 1
 
 FarmTitle.Text =
-	"ESP + AIMLOCK"
+	"TOOL"
 
 FarmTitle.TextColor3 =
 	C.White
 
-FarmTitle.TextSize =
-	18
+FarmTitle.TextSize = 18
 
 FarmTitle.Font =
 	Enum.Font.GothamBlack
@@ -2868,36 +2504,26 @@ local FarmLine =
 	Instance.new("Frame")
 
 FarmLine.Size =
-	UDim2.new(
-		1,
-		-30,
-		0,
-		1
-	)
+	UDim2.new(1, -30, 0, 1)
 
 FarmLine.Position =
-	UDim2.fromOffset(
-		15,
-		45
-	)
+	UDim2.fromOffset(15, 45)
 
 FarmLine.BackgroundColor3 =
 	C.Stroke
 
-FarmLine.BackgroundTransparency =
-	0.35
+FarmLine.BackgroundTransparency = 0.35
 
-FarmLine.BorderSizePixel =
-	0
+FarmLine.BorderSizePixel = 0
 
 FarmLine.Parent =
 	FarmPage
 
 --========================================================--
--- ESP BUTTON
+-- ESP
 --========================================================--
 
-local ESPButton =
+ESPButton =
 	FeatureButton(
 		"ESP  :  OFF",
 		15,
@@ -2905,32 +2531,29 @@ local ESPButton =
 		FarmPage
 	)
 
-ESPButton.MouseButton1Click:Connect(
-	function()
+ESPButton.MouseButton1Click:Connect(function()
 
-		if ESPEnabled then
+	if ESPEnabled then
 
-			StopESP()
+		StopESP()
 
-			ESPButton.Text =
-				"ESP  :  OFF"
+		ESPButton.Text =
+			"ESP  :  OFF"
 
-		else
+	else
 
-			StartESP()
+		StartESP()
 
-			ESPButton.Text =
-				"ESP  :  ON"
-
-		end
+		ESPButton.Text =
+			"ESP  :  ON"
 	end
-)
+end)
 
 --========================================================--
 -- AIMLOCK BUTTON
 --========================================================--
 
-local AimlockButton =
+AimLockButton =
 	FeatureButton(
 		"AIMLOCK  :  OFF",
 		205,
@@ -2938,57 +2561,124 @@ local AimlockButton =
 		FarmPage
 	)
 
-AimlockButton.MouseButton1Click:Connect(
-	function()
+AimLockButton.MouseButton1Click:Connect(function()
 
-		if AimlockEnabled then
+	if AimLockEnabled then
 
-			StopAimlock()
+		StopAimLock()
 
-			AimlockButton.Text =
-				"AIMLOCK  :  OFF"
+		AimLockButton.Text =
+			"AIMLOCK  :  OFF"
 
-		else
+		FOVCircle.Visible = false
 
-			StartAimlock()
+	else
 
-			AimlockButton.Text =
-				"AIMLOCK  :  ON"
+		StartAimLock()
 
-		end
+		AimLockButton.Text =
+			"AIMLOCK  :  ON"
+
+		FOVCircle.Visible = true
 	end
-)
+end)
 
 --========================================================--
--- AIMLOCK FOV TITLE
+-- TARGET BUTTON
+--========================================================--
+
+TargetButton =
+	FeatureButton(
+		"TARGET  :  AUTO",
+		15,
+		115,
+		FarmPage
+	)
+
+local TargetIndex = 0
+
+local function GetTargetList()
+
+	local List = {}
+
+	for _, OtherPlayer in ipairs(
+		Players:GetPlayers()
+	) do
+
+		if OtherPlayer ~= Player then
+
+			table.insert(
+				List,
+				OtherPlayer
+			)
+		end
+	end
+
+	return List
+end
+
+TargetButton.MouseButton1Click:Connect(function()
+
+	local Targets =
+		GetTargetList()
+
+	if #Targets == 0 then
+
+		SelectedTarget = nil
+
+		TargetButton.Text =
+			"TARGET  :  NONE"
+
+		return
+	end
+
+	TargetIndex += 1
+
+	if TargetIndex > #Targets then
+		TargetIndex = 0
+	end
+
+	if TargetIndex == 0 then
+
+		SelectedTarget = nil
+
+		TargetButton.Text =
+			"TARGET  :  AUTO"
+
+	else
+
+		SelectedTarget =
+			Targets[TargetIndex]
+
+		TargetButton.Text =
+			"TARGET  :  "
+			.. SelectedTarget.DisplayName
+	end
+end)
+
+--========================================================--
+-- FOV LABEL
 --========================================================--
 
 local FOVLabel =
 	Instance.new("TextLabel")
 
 FOVLabel.Size =
-	UDim2.fromOffset(
-		260,
-		22
-	)
+	UDim2.fromOffset(180, 30)
 
 FOVLabel.Position =
-	UDim2.fromOffset(
-		15,
-		120
-	)
+	UDim2.fromOffset(15, 170)
 
-FOVLabel.BackgroundTransparency =
-	1
+FOVLabel.BackgroundTransparency = 1
 
 FOVLabel.Text =
-	"AIMLOCK FOV"
+	"FOV  :  "
+	.. tostring(Settings.AimFOV)
 
 FOVLabel.TextColor3 =
 	C.Gray
 
-FOVLabel.TextSize =
-	10
+FOVLabel.TextSize = 11
 
 FOVLabel.Font =
 	Enum.Font.GothamBold
@@ -3000,33 +2690,22 @@ FOVLabel.Parent =
 	FarmPage
 
 --========================================================--
--- FOV TRACK
+-- FOV SLIDER
 --========================================================--
 
 local FOVTrack =
 	Instance.new("Frame")
 
 FOVTrack.Size =
-	UDim2.fromOffset(
-		260,
-		7
-	)
+	UDim2.fromOffset(260, 7)
 
 FOVTrack.Position =
-	UDim2.fromOffset(
-		15,
-		147
-	)
+	UDim2.fromOffset(15, 202)
 
 FOVTrack.BackgroundColor3 =
-	Color3.fromRGB(
-		39,
-		40,
-		50
-	)
+	Color3.fromRGB(39, 40, 50)
 
-FOVTrack.BorderSizePixel =
-	0
+FOVTrack.BorderSizePixel = 0
 
 FOVTrack.Parent =
 	FarmPage
@@ -3041,7 +2720,7 @@ local FOVFill =
 
 FOVFill.Size =
 	UDim2.new(
-		0,
+		0.25,
 		0,
 		1,
 		0
@@ -3050,8 +2729,7 @@ FOVFill.Size =
 FOVFill.BackgroundColor3 =
 	C.Purple
 
-FOVFill.BorderSizePixel =
-	0
+FOVFill.BorderSizePixel = 0
 
 FOVFill.Parent =
 	FOVTrack
@@ -3061,32 +2739,8 @@ Corner(
 	10
 )
 
-local FOVGradient =
-	Instance.new("UIGradient")
-
-FOVGradient.Color =
-	ColorSequence.new({
-
-		ColorSequenceKeypoint.new(
-			0,
-			C.Blue
-		),
-
-		ColorSequenceKeypoint.new(
-			1,
-			C.Purple
-		)
-	})
-
-FOVGradient.Parent =
-	FOVFill
-
---========================================================--
--- FOV KNOB
---========================================================--
-
 local FOVKnob =
-	Instance.new("TextButton")
+	Instance.new("Frame")
 
 FOVKnob.Size =
 	UDim2.fromOffset(
@@ -3100,6 +2754,14 @@ FOVKnob.AnchorPoint =
 		0.5
 	)
 
+FOVKnob.Position =
+	UDim2.new(
+		0.25,
+		0,
+		0.5,
+		0
+	)
+
 FOVKnob.BackgroundColor3 =
 	Color3.fromRGB(
 		250,
@@ -3107,11 +2769,7 @@ FOVKnob.BackgroundColor3 =
 		255
 	)
 
-FOVKnob.BorderSizePixel =
-	0
-
-FOVKnob.Text =
-	""
+FOVKnob.BorderSizePixel = 0
 
 FOVKnob.Parent =
 	FOVTrack
@@ -3128,100 +2786,21 @@ AddStroke(
 	0.15
 )
 
---========================================================--
--- FOV VALUE
---========================================================--
+local function SetFOV(Value)
 
-local FOVInput =
-	Instance.new("TextBox")
-
-FOVInput.Size =
-	UDim2.fromOffset(
-		75,
-		31
-	)
-
-FOVInput.Position =
-	UDim2.fromOffset(
-		300,
-		130
-	)
-
-FOVInput.BackgroundColor3 =
-	C.Button
-
-FOVInput.BorderSizePixel =
-	0
-
-FOVInput.Text =
-	tostring(
-		AimlockFOV
-	)
-
-FOVInput.TextColor3 =
-	C.White
-
-FOVInput.TextSize =
-	11
-
-FOVInput.Font =
-	Enum.Font.GothamBold
-
-FOVInput.ClearTextOnFocus =
-	false
-
-FOVInput.Parent =
-	FarmPage
-
-Corner(
-	FOVInput,
-	8
-)
-
-AddStroke(
-	FOVInput,
-	C.Stroke,
-	1,
-	0.35
-)
-
---========================================================--
--- SET FOV
---========================================================--
-
-local function SetAimlockFOV(Value)
-
-	Value =
-		tonumber(Value)
-		or AimlockFOV
-
-	Value =
+	Settings.AimFOV =
 		math.clamp(
 			math.floor(
-				Value + 0.5
+				tonumber(Value) or
+				DEFAULT.AimFOV
 			),
-			AIMLOCK_MIN_FOV,
-			AIMLOCK_MAX_FOV
-		)
-
-	AimlockFOV =
-		Value
-
-	FOVInput.Text =
-		tostring(
-			Value
+			50,
+			400
 		)
 
 	local Percent =
-		(
-			Value -
-			AIMLOCK_MIN_FOV
-		)
-		/
-		(
-			AIMLOCK_MAX_FOV -
-			AIMLOCK_MIN_FOV
-		)
+		(Settings.AimFOV - 50) /
+		(400 - 50)
 
 	FOVFill.Size =
 		UDim2.new(
@@ -3239,67 +2818,14 @@ local function SetAimlockFOV(Value)
 			0
 		)
 
-	if FOVCircle then
+	FOVLabel.Text =
+		"FOV  :  "
+		.. tostring(Settings.AimFOV)
 
-		FOVCircle.Radius =
-			AimlockFOV
-
-	end
-end
-
-local function SetFOVFromMouse(X)
-
-	local Left =
-		FOVTrack.AbsolutePosition.X
-
-	local Width =
-		FOVTrack.AbsoluteSize.X
-
-	if Width <= 0 then
-		return
-	end
-
-	local Percent =
-		math.clamp(
-			(
-				X - Left
-			)
-			/
-			Width,
-			0,
-			1
-		)
-
-	local Value =
-		AIMLOCK_MIN_FOV
-		+
-		(
-			AIMLOCK_MAX_FOV -
-			AIMLOCK_MIN_FOV
-		)
-		*
-		Percent
-
-	SetAimlockFOV(
-		Value
-	)
+	UpdateFOV()
 end
 
 FOVTrack.InputBegan:Connect(
-	function(Input)
-
-		if Input.UserInputType ==
-			Enum.UserInputType.MouseButton1 then
-
-			SetFOVFromMouse(
-				Input.Position.X
-			)
-
-		end
-	end
-)
-
-FOVKnob.InputBegan:Connect(
 	function(Input)
 
 		if Input.UserInputType ~=
@@ -3311,6 +2837,34 @@ FOVKnob.InputBegan:Connect(
 		local Moving
 		local Released
 
+		local function UpdateFromMouse()
+
+			local X =
+				UIS:GetMouseLocation().X
+
+			local Left =
+				FOVTrack.AbsolutePosition.X
+
+			local Width =
+				FOVTrack.AbsoluteSize.X
+
+			local Percent =
+				math.clamp(
+					(X - Left) / Width,
+					0,
+					1
+				)
+
+			local Value =
+				50 +
+				(400 - 50) *
+				Percent
+
+			SetFOV(Value)
+		end
+
+		UpdateFromMouse()
+
 		Moving =
 			UIS.InputChanged:Connect(
 				function(Move)
@@ -3318,10 +2872,7 @@ FOVKnob.InputBegan:Connect(
 					if Move.UserInputType ==
 						Enum.UserInputType.MouseMovement then
 
-						SetFOVFromMouse(
-							Move.Position.X
-						)
-
+						UpdateFromMouse()
 					end
 				end
 			)
@@ -3335,44 +2886,18 @@ FOVKnob.InputBegan:Connect(
 
 						Moving:Disconnect()
 						Released:Disconnect()
-
 					end
 				end
 			)
 	end
 )
 
-FOVInput.FocusLost:Connect(
-	function()
-
-		local Value =
-			tonumber(
-				FOVInput.Text
-			)
-
-		if Value then
-
-			SetAimlockFOV(
-				Value
-			)
-
-		else
-
-			FOVInput.Text =
-				tostring(
-					AimlockFOV
-				)
-
-		end
-	end
-)
-
-SetAimlockFOV(
-	AimlockFOV
+SetFOV(
+	DEFAULT.AimFOV
 )
 
 --========================================================--
--- ESP INFO
+-- TOOL INFO
 --========================================================--
 
 local ESPInfo =
@@ -3383,38 +2908,37 @@ ESPInfo.Size =
 		1,
 		-30,
 		0,
-		100
+		95
 	)
 
 ESPInfo.Position =
 	UDim2.fromOffset(
 		15,
-		185
+		225
 	)
 
 ESPInfo.BackgroundColor3 =
 	C.Button
 
-ESPInfo.BackgroundTransparency =
-	0.2
+ESPInfo.BackgroundTransparency = 0.2
 
-ESPInfo.BorderSizePixel =
-	0
+ESPInfo.BorderSizePixel = 0
 
 ESPInfo.Text =
-	"ESP\nHiển thị người chơi + khoảng cách\n\nAIMLOCK\nTự khóa mục tiêu gần tâm màn hình"
+	"ESP\n" ..
+	"Hiển thị người chơi + khoảng cách\n\n" ..
+	"AIMLOCK\n" ..
+	"Khóa vào mục tiêu trong FOV"
 
 ESPInfo.TextColor3 =
 	C.Gray
 
-ESPInfo.TextSize =
-	11
+ESPInfo.TextSize = 10
 
 ESPInfo.Font =
 	Enum.Font.GothamBold
 
-ESPInfo.TextWrapped =
-	true
+ESPInfo.TextWrapped = true
 
 ESPInfo.TextYAlignment =
 	Enum.TextYAlignment.Center
@@ -3435,86 +2959,6 @@ AddStroke(
 )
 
 --========================================================--
--- RESET EVERYTHING
---========================================================--
-
-local function ResetEverything()
-
-	StopFly()
-	StopNoClip()
-	StopESP()
-	StopAimlock()
-
-	SpeedEnabled = false
-	JumpEnabled = false
-	FlyEnabled = false
-	NoClipEnabled = false
-	ESPEnabled = false
-	AimlockEnabled = false
-	AimlockTarget = nil
-
-	Settings.Speed =
-		DEFAULT.Speed
-
-	Settings.Jump =
-		DEFAULT.Jump
-
-	Settings.FlySpeed =
-		DEFAULT.FlySpeed
-
-	if Humanoid then
-
-		Humanoid.WalkSpeed =
-			16
-
-		Humanoid.UseJumpPower =
-			true
-
-		Humanoid.JumpPower =
-			50
-
-	end
-
-	SpeedButton.Text =
-		"SPEED  :  OFF"
-
-	JumpButton.Text =
-		"HIGH JUMP  :  OFF"
-
-	FlyButton.Text =
-		"FLY  :  OFF"
-
-	NoClipButton.Text =
-		"NOCLIP  :  OFF"
-
-	ESPButton.Text =
-		"ESP  :  OFF"
-
-	AimlockButton.Text =
-		"AIMLOCK  :  OFF"
-
-	SpeedSlider.Set(
-		DEFAULT.Speed
-	)
-
-	JumpSlider.Set(
-		DEFAULT.Jump
-	)
-
-	FlySlider.Set(
-		DEFAULT.FlySpeed
-	)
-
-	SetAimlockFOV(
-		150
-	)
-end
-
-Reset.MouseButton1Click:Connect(
-	ResetEverything
-)
-
---========================================================--
 -- TAB SYSTEM
 --========================================================--
 
@@ -3522,11 +2966,9 @@ local function SelectTab(Number)
 
 	if Number == 1 then
 
-		MainPage.Visible =
-			true
+		MainPage.Visible = true
 
-		FarmPage.Visible =
-			false
+		FarmPage.Visible = false
 
 		MakeTween(
 			Tab1,
@@ -3552,11 +2994,9 @@ local function SelectTab(Number)
 
 	else
 
-		MainPage.Visible =
-			false
+		MainPage.Visible = false
 
-		FarmPage.Visible =
-			true
+		FarmPage.Visible = true
 
 		MakeTween(
 			Tab1,
@@ -3579,21 +3019,20 @@ local function SelectTab(Number)
 					)
 			}
 		):Play()
-
 	end
 end
 
-Tab1.MouseButton1Click:Connect(
-	function()
-		SelectTab(1)
-	end
-)
+Tab1.MouseButton1Click:Connect(function()
 
-Tab2.MouseButton1Click:Connect(
-	function()
-		SelectTab(2)
-	end
-)
+	SelectTab(1)
+
+end)
+
+Tab2.MouseButton1Click:Connect(function()
+
+	SelectTab(2)
+
+end)
 
 --========================================================--
 -- OPEN / CLOSE
@@ -3605,8 +3044,7 @@ local function OpenMenu()
 
 	MenuOpen = true
 
-	Main.Visible =
-		true
+	Main.Visible = true
 
 	Main.Size =
 		UDim2.fromOffset(
@@ -3653,64 +3091,77 @@ local function CloseMenu()
 
 			if not MenuOpen then
 
-				Main.Visible =
-					false
-
+				Main.Visible = false
 			end
 		end
 	)
 end
 
-HubButton.MouseButton1Click:Connect(
-	function()
+HubButton.MouseButton1Click:Connect(function()
 
-		if MenuOpen then
-			CloseMenu()
-		else
-			OpenMenu()
-		end
+	if MenuOpen then
+
+		CloseMenu()
+
+	else
+
+		OpenMenu()
 	end
-)
+end)
 
 --========================================================--
 -- HUB BUTTON ANIMATION
 --========================================================--
 
-HubButton.MouseEnter:Connect(
-	function()
+HubButton.MouseEnter:Connect(function()
 
-		MakeTween(
-			HubButton,
-			0.15,
-			{
-				Size =
-					UDim2.fromOffset(
-						70,
-						70
-					)
-			}
-		):Play()
+	MakeTween(
+		HubButton,
+		0.15,
+		{
+			Size =
+				UDim2.fromOffset(
+					70,
+					70
+				)
+		}
+	):Play()
+end)
 
+HubButton.MouseLeave:Connect(function()
+
+	MakeTween(
+		HubButton,
+		0.15,
+		{
+			Size =
+				UDim2.fromOffset(
+					64,
+					64
+				)
+		}
+	):Play()
+end)
+
+--========================================================--
+-- FOV UPDATE LOOP
+--========================================================--
+
+RunService.RenderStepped:Connect(function()
+
+	-- FOV luôn nằm giữa màn hình.
+	-- Không bao giờ lấy vị trí chuột.
+	UpdateFOV()
+
+	if AimLockEnabled then
+
+		FOVCircle.Visible = true
+
+	else
+
+		FOVCircle.Visible = false
 	end
-)
-
-HubButton.MouseLeave:Connect(
-	function()
-
-		MakeTween(
-			HubButton,
-			0.15,
-			{
-				Size =
-					UDim2.fromOffset(
-						64,
-						64
-					)
-			}
-		):Play()
-
-	end
-)
+end)
 
 --========================================================--
 -- SHOW BUTTON AFTER LOADING
@@ -3724,36 +3175,35 @@ task.delay(
 			return
 		end
 
-		HubButton.Visible =
-			true
+		HubButton.Visible = true
 
-		HubButton.BackgroundTransparency =
-			1
+		HubButton.BackgroundTransparency = 1
 
 		MakeTween(
 			HubButton,
 			0.45,
 			{
-				BackgroundTransparency =
-					0
+				BackgroundTransparency = 0
 			}
 		):Play()
-
 	end
 )
 
 --========================================================--
--- RESPAWN SAFETY
+-- CLEANUP
 --========================================================--
 
-Player.CharacterAdded:Connect(
-	function()
+Gui.AncestryChanged:Connect(function(_, Parent)
 
-		AimlockTarget =
-			nil
-
+	if Parent then
+		return
 	end
-)
+
+	StopFly()
+	StopNoClip()
+	StopESP()
+	StopAimLock()
+end)
 
 --========================================================--
 -- READY
