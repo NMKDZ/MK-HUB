@@ -3009,4 +3009,3 @@ end)
 print(
 	"MK HUB v2.0 READY"
 )
-them aimlock va fov sieu ba vao
