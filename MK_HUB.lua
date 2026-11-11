@@ -1,7 +1,7 @@
 --========================================================--
 --                    MK HUB v2.0                         --
 --                 FOX ANIME EDITION                      --
---     MAIN / TOOL — FULL BUILD (MOB ESP + INVIS)         --
+--     MAIN / TOOL — FULL BUILD (NO LOADING)              --
 --========================================================--
 
 local Players     = game:GetService("Players")
@@ -9,9 +9,31 @@ local UIS         = game:GetService("UserInputService")
 local RunService  = game:GetService("RunService")
 local TweenService= game:GetService("TweenService")
 local Lighting    = game:GetService("Lighting")
+local StarterGui  = game:GetService("StarterGui")
 local Workspace   = workspace
 
 local Player = Players.LocalPlayer
+
+--========================================================--
+-- NOTIFY
+--========================================================--
+
+local function Notify(message)
+	task.spawn(function()
+		for i = 1, 10 do
+			local success = pcall(function()
+				StarterGui:SetCore("SendNotification", {
+					Title    = "MKDz",
+					Text     = message,
+					Icon     = "rbxassetid://122052941282436",
+					Duration = 5,
+				})
+			end)
+			if success then return end
+			task.wait(1)
+		end
+	end)
+end
 
 --========================================================--
 -- SETTINGS
@@ -59,7 +81,7 @@ local MobESPEnabled   = false
 local InvisEnabled    = false
 local FastModeEnabled = false
 
-local FlyBody, FlyConnection
+local FlyBody, FlyAtt, FlyConnection
 local NoClipConnection
 local ESPConnection
 local MobESPConnection
@@ -82,8 +104,6 @@ local C = {
 	Purple      = Color3.fromRGB(178,105,255),
 	Blue        = Color3.fromRGB(100,160,255),
 	Pink        = Color3.fromRGB(255,125,205),
-	Green       = Color3.fromRGB(100,255,160),
-	Orange      = Color3.fromRGB(255,180,80),
 	Stroke      = Color3.fromRGB(70,70,92),
 }
 
@@ -126,10 +146,6 @@ local function MakeTween(o, t, props, style)
 	)
 end
 
---========================================================--
--- FOX HELPER
---========================================================--
-
 local function CreateFox(Parent, Position, Size, ZIndex)
 	local f = Instance.new("TextLabel")
 	f.Size                   = UDim2.fromOffset(Size, Size)
@@ -145,135 +161,6 @@ local function CreateFox(Parent, Position, Size, ZIndex)
 end
 
 --========================================================--
--- LOADING SCREEN
---========================================================--
-
-local Loading = Instance.new("Frame")
-Loading.Size             = UDim2.fromScale(1,1)
-Loading.BackgroundColor3 = C.Background
-Loading.BorderSizePixel  = 0
-Loading.ZIndex           = 1000
-Loading.Parent           = Gui
-
-local LG = Instance.new("UIGradient")
-LG.Rotation = 35
-LG.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0,   Color3.fromRGB(7,8,15)),
-	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(34,19,50)),
-	ColorSequenceKeypoint.new(1,   Color3.fromRGB(7,9,16)),
-})
-LG.Parent = Loading
-
-local LoadingFoxes = {}
-local FoxPositions = {
-	UDim2.new(0,60,0.5,-40), UDim2.new(1,-120,0.5,-80),
-	UDim2.new(0.18,0,0,90),  UDim2.new(0.78,0,0,75),
-	UDim2.new(0.10,0,1,-150),UDim2.new(0.82,0,1,-160),
-}
-for _, pos in ipairs(FoxPositions) do
-	local f = CreateFox(Loading, pos, 65, 1001)
-	f.TextTransparency = 0.15
-	table.insert(LoadingFoxes, f)
-end
-task.spawn(function()
-	local off = 0
-	while Loading.Parent do
-		off += task.wait(0.03)
-		for i, f in ipairs(LoadingFoxes) do
-			local b = FoxPositions[i]
-			local y = math.sin(off * 2 + i) * 8
-			f.Position = UDim2.new(b.X.Scale, b.X.Offset, b.Y.Scale, b.Y.Offset + y)
-		end
-	end
-end)
-
-local LoadingCard = Instance.new("Frame")
-LoadingCard.Size                   = UDim2.fromOffset(440,260)
-LoadingCard.AnchorPoint            = Vector2.new(0.5,0.5)
-LoadingCard.Position               = UDim2.fromScale(0.5,0.5)
-LoadingCard.BackgroundColor3       = Color3.fromRGB(13,14,21)
-LoadingCard.BackgroundTransparency = 0.03
-LoadingCard.BorderSizePixel        = 0
-LoadingCard.ZIndex                 = 1010
-LoadingCard.Parent                 = Loading
-Corner(LoadingCard, 22)
-AddStroke(LoadingCard, Color3.fromRGB(130,90,180), 1, 0.2)
-
-local LoadingTitle = Instance.new("TextLabel")
-LoadingTitle.Size                   = UDim2.new(1,0,0,65)
-LoadingTitle.Position               = UDim2.fromOffset(0,42)
-LoadingTitle.BackgroundTransparency = 1
-LoadingTitle.Text                   = "MK HUB v2.0"
-LoadingTitle.TextColor3             = C.White
-LoadingTitle.TextSize               = 38
-LoadingTitle.Font                   = Enum.Font.GothamBlack
-LoadingTitle.ZIndex                 = 1012
-LoadingTitle.Parent                 = LoadingCard
-
-local TG = Instance.new("UIGradient")
-TG.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0,   C.Purple),
-	ColorSequenceKeypoint.new(0.5, C.White),
-	ColorSequenceKeypoint.new(1,   C.Blue),
-})
-TG.Parent = LoadingTitle
-
-local LoadingStatus = Instance.new("TextLabel")
-LoadingStatus.Size                   = UDim2.new(1,0,0,25)
-LoadingStatus.Position               = UDim2.fromOffset(0,103)
-LoadingStatus.BackgroundTransparency = 1
-LoadingStatus.Text                   = "Loading..."
-LoadingStatus.TextColor3             = C.Gray
-LoadingStatus.TextSize               = 12
-LoadingStatus.Font                   = Enum.Font.Gotham
-LoadingStatus.ZIndex                 = 1012
-LoadingStatus.Parent                 = LoadingCard
-
-local ProgressBack = Instance.new("Frame")
-ProgressBack.Size             = UDim2.fromOffset(330,8)
-ProgressBack.Position         = UDim2.new(0.5,-165,0,145)
-ProgressBack.BackgroundColor3 = Color3.fromRGB(37,38,48)
-ProgressBack.BorderSizePixel  = 0
-ProgressBack.ZIndex           = 1012
-ProgressBack.Parent           = LoadingCard
-Corner(ProgressBack, 10)
-
-local Progress = Instance.new("Frame")
-Progress.Size             = UDim2.new(0,0,1,0)
-Progress.BackgroundColor3 = C.Purple
-Progress.BorderSizePixel  = 0
-Progress.ZIndex           = 1013
-Progress.Parent           = ProgressBack
-Corner(Progress, 10)
-local PGrad = Instance.new("UIGradient")
-PGrad.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0,   C.Blue),
-	ColorSequenceKeypoint.new(0.5, C.Purple),
-	ColorSequenceKeypoint.new(1,   C.Pink),
-})
-PGrad.Parent = Progress
-
-task.spawn(function()
-	for _, t in ipairs({0.12,0.25,0.40,0.58,0.75,0.90,1}) do
-		MakeTween(Progress, 0.5, {Size = UDim2.new(t,0,1,0)}):Play()
-		task.wait(0.65)
-	end
-	task.wait(0.35)
-	for _, o in ipairs(LoadingCard:GetDescendants()) do
-		if o:IsA("TextLabel") then
-			MakeTween(o, 0.3, {TextTransparency = 1}):Play()
-		end
-	end
-	MakeTween(LoadingCard, 0.4, {BackgroundTransparency = 1}):Play()
-	for _, f in ipairs(LoadingFoxes) do
-		MakeTween(f, 0.4, {TextTransparency = 1}):Play()
-	end
-	MakeTween(Loading, 0.5, {BackgroundTransparency = 1}):Play()
-	task.wait(0.55)
-	Loading:Destroy()
-end)
-
---========================================================--
 -- HUB BUTTON
 --========================================================--
 
@@ -286,7 +173,7 @@ HubButton.Text             = "MK"
 HubButton.TextColor3       = C.White
 HubButton.TextSize         = 16
 HubButton.Font             = Enum.Font.GothamBlack
-HubButton.Visible          = false
+HubButton.Visible          = true
 HubButton.Parent           = Gui
 Corner(HubButton, 32)
 AddStroke(HubButton, C.Purple, 2, 0.1)
@@ -340,19 +227,19 @@ task.spawn(function()
 end)
 
 local Header = Instance.new("TextButton")
-Header.Size                 = UDim2.new(1,-115,0,55)
-Header.Position             = UDim2.fromOffset(16,10)
+Header.Size                   = UDim2.new(1,-115,0,55)
+Header.Position               = UDim2.fromOffset(16,10)
 Header.BackgroundTransparency = 1
-Header.Text                 = "MK HUB v2.0"
-Header.TextColor3           = C.White
-Header.TextSize             = 20
-Header.Font                 = Enum.Font.GothamBlack
-Header.TextXAlignment       = Enum.TextXAlignment.Left
-Header.AutoButtonColor      = false
-Header.Parent               = Main
+Header.Text                   = "MK HUB v2.0"
+Header.TextColor3             = C.White
+Header.TextSize               = 20
+Header.Font                   = Enum.Font.GothamBlack
+Header.TextXAlignment         = Enum.TextXAlignment.Left
+Header.AutoButtonColor        = false
+Header.Parent                 = Main
 
 --========================================================--
--- DRAG — Main frame (kéo qua header)
+-- DRAG — Main frame
 --========================================================--
 
 do
@@ -381,41 +268,44 @@ do
 end
 
 --========================================================--
--- DRAG — HubButton với threshold (không conflict click)
+-- DRAG — HubButton (threshold để không conflict click)
 --========================================================--
 
 local MenuOpen   = false
 local HubDragged = false
 
 do
-	local Dragging, DragStart, StartPos
-	local THRESHOLD = 6
+	local Drag      = false
+	local DragStart = Vector2.zero
+	local StartPos
 
 	HubButton.InputBegan:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 then
-			Dragging   = true
-			HubDragged = false
-			DragStart  = i.Position
-			StartPos   = HubButton.Position
-		end
+		if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+		Drag        = true
+		HubDragged  = false
+		DragStart   = Vector2.new(i.Position.X, i.Position.Y)
+		StartPos    = HubButton.Position
 	end)
-	HubButton.InputEnded:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 then
-			Dragging = false
-		end
-	end)
+
 	UIS.InputChanged:Connect(function(i)
-		if not Dragging then return end
+		if not Drag then return end
 		if i.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-		local delta = i.Position - DragStart
-		if delta.Magnitude > THRESHOLD then
+		local dx = i.Position.X - DragStart.X
+		local dy = i.Position.Y - DragStart.Y
+		if math.abs(dx) > 6 or math.abs(dy) > 6 then
 			HubDragged = true
 		end
 		if HubDragged then
 			HubButton.Position = UDim2.new(
-				StartPos.X.Scale, StartPos.X.Offset + delta.X,
-				StartPos.Y.Scale, StartPos.Y.Offset + delta.Y
+				StartPos.X.Scale, StartPos.X.Offset + dx,
+				StartPos.Y.Scale, StartPos.Y.Offset + dy
 			)
+		end
+	end)
+
+	UIS.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			Drag = false
 		end
 	end)
 end
@@ -503,18 +393,17 @@ end
 
 --========================================================--
 -- MAIN BUTTONS
--- Row 1 Y=10  : Speed | HighJump
--- Row 2 Y=58  : Fly   | NoClip
--- Row 3 Y=106 : Invisible (full width giữa)
+-- Y=10  : Speed | HighJump
+-- Y=58  : Fly   | NoClip
+-- Y=106 : Invisible (full width)
 --========================================================--
 
-local SpeedButton  = FeatureButton("SPEED  :  OFF",      15,  10)
-local JumpButton   = FeatureButton("HIGH JUMP  :  OFF",  205, 10)
-local FlyButton    = FeatureButton("FLY  :  OFF",        15,  58)
-local NoClipButton = FeatureButton("NOCLIP  :  OFF",     205, 58)
+local SpeedButton  = FeatureButton("SPEED  :  OFF",     15,  10)
+local JumpButton   = FeatureButton("HIGH JUMP  :  OFF", 205, 10)
+local FlyButton    = FeatureButton("FLY  :  OFF",       15,  58)
+local NoClipButton = FeatureButton("NOCLIP  :  OFF",    205, 58)
 
--- Invisible — button rộng hơn, đặt giữa
-local InvisButton  = Instance.new("TextButton")
+local InvisButton = Instance.new("TextButton")
 InvisButton.Size             = UDim2.fromOffset(365,40)
 InvisButton.Position         = UDim2.fromOffset(15,106)
 InvisButton.BackgroundColor3 = Color3.fromRGB(35,25,55)
@@ -529,12 +418,12 @@ Corner(InvisButton, 10)
 AddStroke(InvisButton, C.Purple, 1, 0.3)
 
 --========================================================--
--- SLIDER FACTORY
+-- SLIDER FACTORY (track full width, no clip issue)
 --========================================================--
 
 local function MakeSlider(Title, Y, Min, Max, Default, OnChanged)
 	local Label = Instance.new("TextLabel")
-	Label.Size                   = UDim2.fromOffset(200,22)
+	Label.Size                   = UDim2.fromOffset(160,20)
 	Label.Position               = UDim2.fromOffset(15,Y)
 	Label.BackgroundTransparency = 1
 	Label.Text                   = Title
@@ -544,9 +433,20 @@ local function MakeSlider(Title, Y, Min, Max, Default, OnChanged)
 	Label.TextXAlignment         = Enum.TextXAlignment.Left
 	Label.Parent                 = MainPage
 
+	local ValLabel = Instance.new("TextLabel")
+	ValLabel.Size                   = UDim2.fromOffset(60,20)
+	ValLabel.Position               = UDim2.fromOffset(310,Y)
+	ValLabel.BackgroundTransparency = 1
+	ValLabel.Text                   = tostring(Default)
+	ValLabel.TextColor3             = C.Purple
+	ValLabel.TextSize               = 10
+	ValLabel.Font                   = Enum.Font.GothamBold
+	ValLabel.TextXAlignment         = Enum.TextXAlignment.Right
+	ValLabel.Parent                 = MainPage
+
 	local Track = Instance.new("Frame")
-	Track.Size             = UDim2.fromOffset(260,7)
-	Track.Position         = UDim2.fromOffset(15,Y+27)
+	Track.Size             = UDim2.fromOffset(355,7)
+	Track.Position         = UDim2.fromOffset(15,Y+24)
 	Track.BackgroundColor3 = Color3.fromRGB(39,40,50)
 	Track.BorderSizePixel  = 0
 	Track.Parent           = MainPage
@@ -575,29 +475,15 @@ local function MakeSlider(Title, Y, Min, Max, Default, OnChanged)
 	Corner(Knob, 20)
 	AddStroke(Knob, C.Purple, 1, 0.15)
 
-	local Input = Instance.new("TextBox")
-	Input.Size             = UDim2.fromOffset(75,31)
-	Input.Position         = UDim2.fromOffset(300, Y-5)
-	Input.BackgroundColor3 = C.Button
-	Input.BorderSizePixel  = 0
-	Input.Text             = tostring(Default)
-	Input.TextColor3       = C.White
-	Input.TextSize         = 11
-	Input.Font             = Enum.Font.GothamBold
-	Input.ClearTextOnFocus = false
-	Input.Parent           = MainPage
-	Corner(Input, 8)
-	AddStroke(Input, C.Stroke, 1, 0.35)
-
 	local Current = Default
 
 	local function SetValue(v)
-		v = math.clamp(math.floor((tonumber(v) or Current) + 0.5), Min, Max)
-		Current = v
-		local pct = (v - Min) / (Max - Min)
+		v = math.clamp(math.floor((tonumber(v) or Current)+0.5), Min, Max)
+		Current       = v
+		local pct     = (v-Min)/(Max-Min)
 		Fill.Size     = UDim2.new(pct,0,1,0)
 		Knob.Position = UDim2.new(pct,0,0.5,0)
-		Input.Text    = tostring(v)
+		ValLabel.Text = tostring(v)
 		OnChanged(v)
 	end
 
@@ -605,7 +491,7 @@ local function MakeSlider(Title, Y, Min, Max, Default, OnChanged)
 		local left  = Track.AbsolutePosition.X
 		local width = Track.AbsoluteSize.X
 		if width <= 0 then return end
-		SetValue(Min + (Max-Min) * math.clamp((x-left)/width, 0, 1))
+		SetValue(Min+(Max-Min)*math.clamp((x-left)/width,0,1))
 	end
 
 	Track.InputBegan:Connect(function(i)
@@ -613,6 +499,7 @@ local function MakeSlider(Title, Y, Min, Max, Default, OnChanged)
 			FromMouse(i.Position.X)
 		end
 	end)
+
 	Knob.InputBegan:Connect(function(i)
 		if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
 		local m, r
@@ -627,31 +514,27 @@ local function MakeSlider(Title, Y, Min, Max, Default, OnChanged)
 			end
 		end)
 	end)
-	Input.FocusLost:Connect(function()
-		local n = tonumber(Input.Text)
-		if n then SetValue(n) else Input.Text = tostring(Current) end
-	end)
 
 	SetValue(Default)
 	return { Set = SetValue, Get = function() return Current end }
 end
 
 --========================================================--
--- SLIDERS  (Y offset: row3=106 jadi slider mulai 160)
+-- SLIDERS  (Y: 160 / 215 / 270 — tránh đè nhau)
 --========================================================--
 
 local SpeedSlider = MakeSlider("SPEED",     160, 16,  200, Settings.Speed, function(v)
 	Settings.Speed = v
 end)
-local JumpSlider  = MakeSlider("HIGH JUMP", 220, 50,  250, Settings.Jump, function(v)
+local JumpSlider  = MakeSlider("HIGH JUMP", 215, 50,  250, Settings.Jump, function(v)
 	Settings.Jump = v
 end)
-local FlySlider   = MakeSlider("FLY SPEED", 280, 20,  250, Settings.FlySpeed, function(v)
+local FlySlider   = MakeSlider("FLY SPEED", 270, 20,  250, Settings.FlySpeed, function(v)
 	Settings.FlySpeed = v
 end)
 
 --========================================================--
--- SPEED — RenderStepped loop
+-- SPEED
 --========================================================--
 
 local function StopSpeed()
@@ -677,7 +560,7 @@ SpeedButton.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
--- HIGH JUMP — RenderStepped loop
+-- HIGH JUMP
 --========================================================--
 
 local function StopJump()
@@ -709,45 +592,54 @@ JumpButton.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
--- FLY — LinearVelocity / fallback BodyVelocity
+-- FLY
 --========================================================--
-
-local FlyAtt -- attachment cho LinearVelocity
 
 local function StopFly()
 	FlyEnabled = false
 	if FlyConnection then FlyConnection:Disconnect(); FlyConnection = nil end
 	if FlyAtt  then FlyAtt:Destroy();  FlyAtt  = nil end
 	if FlyBody then FlyBody:Destroy(); FlyBody = nil end
+	if Humanoid then Humanoid.PlatformStand = false end
 end
 
-local function StartFly()
-	if FlyEnabled or not Root then return end
-	FlyEnabled = true
-
+local function MakeFlyBody()
+	if FlyAtt  then FlyAtt:Destroy();  FlyAtt  = nil end
+	if FlyBody then FlyBody:Destroy(); FlyBody = nil end
 	local ok = pcall(function()
 		FlyAtt = Instance.new("Attachment")
+		FlyAtt.Name   = "MK_FlyAtt"
 		FlyAtt.Parent = Root
 		local lv = Instance.new("LinearVelocity")
+		lv.Name                   = "MK_FlyLV"
 		lv.Attachment0            = FlyAtt
 		lv.MaxForce               = math.huge
 		lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
 		lv.VectorVelocity         = Vector3.zero
 		lv.Parent                 = Root
-		FlyBody                   = lv
+		FlyBody = lv
 	end)
-
-	if not ok then
+	if not ok or not FlyBody then
 		if FlyAtt then FlyAtt:Destroy(); FlyAtt = nil end
 		local bv = Instance.new("BodyVelocity")
+		bv.Name     = "MK_FlyBV"
 		bv.MaxForce = Vector3.new(math.huge,math.huge,math.huge)
 		bv.Velocity = Vector3.zero
 		bv.Parent   = Root
-		FlyBody     = bv
+		FlyBody = bv
 	end
+end
 
+local function StartFly()
+	if FlyEnabled or not Root then return end
+	FlyEnabled = true
+	if Humanoid then Humanoid.PlatformStand = true end
+	MakeFlyBody()
 	FlyConnection = RunService.RenderStepped:Connect(function()
-		if not FlyEnabled or not Root or not FlyBody then return end
+		if not FlyEnabled then return end
+		if not Root or not Root.Parent then return end
+		if Humanoid then Humanoid.PlatformStand = true end
+		if not FlyBody or not FlyBody.Parent then MakeFlyBody() end
 		local cam = Workspace.CurrentCamera
 		if not cam then return end
 		local dir = Vector3.zero
@@ -758,11 +650,13 @@ local function StartFly()
 		if UIS:IsKeyDown(Enum.KeyCode.Space)       then dir += Vector3.new(0,1,0)     end
 		if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.new(0,1,0)     end
 		local vel = dir.Magnitude > 0 and dir.Unit * Settings.FlySpeed or Vector3.zero
-		if FlyBody:IsA("LinearVelocity") then
-			FlyBody.VectorVelocity = vel
-		else
-			FlyBody.Velocity = vel
-		end
+		pcall(function()
+			if FlyBody:IsA("LinearVelocity") then
+				FlyBody.VectorVelocity = vel
+			else
+				FlyBody.Velocity = vel
+			end
+		end)
 	end)
 end
 
@@ -865,6 +759,74 @@ InvisButton.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
+-- TELEPORT  &  RESET
+--========================================================--
+
+local Teleport = FeatureButton("TELEPORT",  15,  330, MainPage)
+local Reset    = FeatureButton("RESET ALL", 205, 330, MainPage)
+
+Teleport.MouseButton1Click:Connect(function()
+	if not Root then return end
+	for _, o in ipairs(Workspace:GetDescendants()) do
+		if o:IsA("SpawnLocation") then
+			Root.CFrame = o.CFrame + Vector3.new(0,5,0)
+			break
+		end
+	end
+end)
+
+local function ResetEverything()
+	StopFly(); StopNoClip(); StopSpeed(); StopJump(); StopInvis()
+	SpeedEnabled = false; JumpEnabled = false; FlyEnabled = false
+	NoClipEnabled = false; InvisEnabled = false
+	Settings.Speed    = DEFAULT.Speed
+	Settings.Jump     = DEFAULT.Jump
+	Settings.FlySpeed = DEFAULT.FlySpeed
+	if Humanoid then
+		Humanoid.WalkSpeed    = 16
+		Humanoid.UseJumpPower = true
+		Humanoid.JumpPower    = 50
+	end
+	SpeedButton.Text  = "SPEED  :  OFF"
+	JumpButton.Text   = "HIGH JUMP  :  OFF"
+	FlyButton.Text    = "FLY  :  OFF"
+	NoClipButton.Text = "NOCLIP  :  OFF"
+	InvisButton.Text  = "INVISIBLE  :  OFF"
+	SpeedSlider.Set(DEFAULT.Speed)
+	JumpSlider.Set(DEFAULT.Jump)
+	FlySlider.Set(DEFAULT.FlySpeed)
+end
+
+Reset.MouseButton1Click:Connect(ResetEverything)
+
+--========================================================--
+-- TOOL PAGE
+--========================================================--
+
+local FarmTitle = Instance.new("TextLabel")
+FarmTitle.Size                   = UDim2.new(1,-30,0,35)
+FarmTitle.Position               = UDim2.fromOffset(15,8)
+FarmTitle.BackgroundTransparency = 1
+FarmTitle.Text                   = "TOOL"
+FarmTitle.TextColor3             = C.White
+FarmTitle.TextSize               = 18
+FarmTitle.Font                   = Enum.Font.GothamBlack
+FarmTitle.TextXAlignment         = Enum.TextXAlignment.Left
+FarmTitle.Parent                 = FarmPage
+
+local FarmLine = Instance.new("Frame")
+FarmLine.Size                   = UDim2.new(1,-30,0,1)
+FarmLine.Position               = UDim2.fromOffset(15,45)
+FarmLine.BackgroundColor3       = C.Stroke
+FarmLine.BackgroundTransparency = 0.35
+FarmLine.BorderSizePixel        = 0
+FarmLine.Parent                 = FarmPage
+
+local ESPButton     = FeatureButton("PLAYER ESP  :  OFF", 15,  65, FarmPage)
+local MobESPButton  = FeatureButton("MOB ESP  :  OFF",    205, 65, FarmPage)
+local FastModeButton= FeatureButton("ULTRA FAST  :  OFF", 205, 125, FarmPage)
+
+--========================================================--
 -- PLAYER ESP
 --========================================================--
 
@@ -936,18 +898,13 @@ local function UpdatePlayerESP()
 	if not ESPEnabled or not Root then return end
 	for _, op in ipairs(Players:GetPlayers()) do
 		if op ~= Player then
-			local d  = ESPObjects[op]
-			local oc = op.Character
-			local or2= oc and oc:FindFirstChild("HumanoidRootPart")
-			if not d then
-				CreatePlayerESP(op)
-				d = ESPObjects[op]
-			end
+			local d   = ESPObjects[op]
+			local oc  = op.Character
+			local or2 = oc and oc:FindFirstChild("HumanoidRootPart")
+			if not d then CreatePlayerESP(op); d = ESPObjects[op] end
 			if d and or2 then
 				local dist = (Root.Position - or2.Position).Magnitude
-				if d.Distance then
-					d.Distance.Text = math.floor(dist) .. " studs"
-				end
+				if d.Distance then d.Distance.Text = math.floor(dist).." studs" end
 			end
 		end
 	end
@@ -969,7 +926,6 @@ local function StartESP()
 	ESPConnection = RunService.RenderStepped:Connect(UpdatePlayerESP)
 end
 
--- hook respawn cho players đã có
 for _, op in ipairs(Players:GetPlayers()) do
 	if op ~= Player then
 		op.CharacterAdded:Connect(function()
@@ -983,6 +939,14 @@ Players.PlayerAdded:Connect(function(op)
 	end)
 end)
 Players.PlayerRemoving:Connect(RemoveESP)
+
+ESPButton.MouseButton1Click:Connect(function()
+	if ESPEnabled then
+		StopESP(); ESPButton.Text = "PLAYER ESP  :  OFF"
+	else
+		StartESP(); ESPButton.Text = "PLAYER ESP  :  ON"
+	end
+end)
 
 --========================================================--
 -- MOB ESP
@@ -1061,19 +1025,12 @@ local function CreateMobESP(hum)
 		task.delay(3, function()
 			if not MobESPEnabled then return end
 			for _, obj in ipairs(Workspace:GetDescendants()) do
-				if obj:IsA("Humanoid") then
-					CreateMobESP(obj)
-				end
+				if obj:IsA("Humanoid") then CreateMobESP(obj) end
 			end
 		end)
 	end)
 
-	MobESPData[hum] = {
-		Highlight = hl,
-		Billboard = bb,
-		Distance  = dl,
-		conn      = deathConn,
-	}
+	MobESPData[hum] = { Highlight=hl, Billboard=bb, Distance=dl, conn=deathConn }
 end
 
 local function ScanMobs()
@@ -1111,7 +1068,6 @@ local function StartMobESP()
 	end)
 end
 
--- update khoảng cách mob mỗi 0.5s
 task.spawn(function()
 	while true do
 		task.wait(0.5)
@@ -1120,47 +1076,10 @@ task.spawn(function()
 				local char = hum and hum.Parent
 				local hrp  = char and char:FindFirstChild("HumanoidRootPart")
 				if hrp and d.Distance then
-					d.Distance.Text = math.floor(
-						(Root.Position - hrp.Position).Magnitude
-					) .. " studs"
+					d.Distance.Text = math.floor((Root.Position-hrp.Position).Magnitude).." studs"
 				end
 			end
 		end
-	end
-end)
-
---========================================================--
--- TOOL PAGE
---========================================================--
-
-local FarmTitle = Instance.new("TextLabel")
-FarmTitle.Size                   = UDim2.new(1,-30,0,35)
-FarmTitle.Position               = UDim2.fromOffset(15,8)
-FarmTitle.BackgroundTransparency = 1
-FarmTitle.Text                   = "TOOL"
-FarmTitle.TextColor3             = C.White
-FarmTitle.TextSize               = 18
-FarmTitle.Font                   = Enum.Font.GothamBlack
-FarmTitle.TextXAlignment         = Enum.TextXAlignment.Left
-FarmTitle.Parent                 = FarmPage
-
-local FarmLine = Instance.new("Frame")
-FarmLine.Size                   = UDim2.new(1,-30,0,1)
-FarmLine.Position               = UDim2.fromOffset(15,45)
-FarmLine.BackgroundColor3       = C.Stroke
-FarmLine.BackgroundTransparency = 0.35
-FarmLine.BorderSizePixel        = 0
-FarmLine.Parent                 = FarmPage
-
-local ESPButton     = FeatureButton("PLAYER ESP  :  OFF", 15,  65, FarmPage)
-local MobESPButton  = FeatureButton("MOB ESP  :  OFF",    205, 65, FarmPage)
-local FastModeButton= FeatureButton("ULTRA FAST  :  OFF", 205, 125, FarmPage)
-
-ESPButton.MouseButton1Click:Connect(function()
-	if ESPEnabled then
-		StopESP(); ESPButton.Text = "PLAYER ESP  :  OFF"
-	else
-		StartESP(); ESPButton.Text = "PLAYER ESP  :  ON"
 	end
 end)
 
@@ -1200,22 +1119,22 @@ local function OptObj(obj)
 	if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam")
 	or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles")
 	or obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
-		ChangeProp(obj, "Enabled", false)
+		ChangeProp(obj,"Enabled",false)
 	elseif obj:IsA("Decal") or obj:IsA("Texture") then
-		ChangeProp(obj, "Transparency", 1)
+		ChangeProp(obj,"Transparency",1)
 	elseif obj:IsA("SpecialMesh") then
-		ChangeProp(obj, "TextureId", "")
+		ChangeProp(obj,"TextureId","")
 	elseif obj:IsA("SurfaceAppearance") then
 		for _, k in ipairs({"ColorMap","MetalnessMap","NormalMap","RoughnessMap"}) do
-			ChangeProp(obj, k, "")
+			ChangeProp(obj,k,"")
 		end
 	end
 end
 
 local function OptPart(obj)
 	if not obj:IsA("BasePart") then return end
-	ChangeProp(obj, "Material",    Enum.Material.SmoothPlastic)
-	ChangeProp(obj, "Reflectance", 0)
+	ChangeProp(obj,"Material",Enum.Material.SmoothPlastic)
+	ChangeProp(obj,"Reflectance",0)
 end
 
 local function StartFastMode()
@@ -1291,55 +1210,8 @@ FastInfo.Font                   = Enum.Font.GothamBold
 FastInfo.TextWrapped            = true
 FastInfo.TextYAlignment         = Enum.TextYAlignment.Center
 FastInfo.Parent                 = FarmPage
-Corner(FastInfo, 12)
-AddStroke(FastInfo, C.Stroke, 1, 0.45)
-
---========================================================--
--- TELEPORT  &  RESET
---========================================================--
-
-local Teleport = FeatureButton("TELEPORT",  15,  350, MainPage)
-local Reset    = FeatureButton("RESET ALL", 205, 350, MainPage)
-
-Teleport.MouseButton1Click:Connect(function()
-	if not Root then return end
-	for _, o in ipairs(Workspace:GetDescendants()) do
-		if o:IsA("SpawnLocation") then
-			Root.CFrame = o.CFrame + Vector3.new(0,5,0)
-			break
-		end
-	end
-end)
-
-local function ResetEverything()
-	StopFly(); StopNoClip(); StopESP(); StopMobESP()
-	StopSpeed(); StopJump(); StopInvis()
-	if FastModeEnabled then StopFastMode() end
-	SpeedEnabled = false; JumpEnabled = false; FlyEnabled = false
-	NoClipEnabled = false; ESPEnabled = false; MobESPEnabled = false
-	InvisEnabled  = false
-	Settings.Speed    = DEFAULT.Speed
-	Settings.Jump     = DEFAULT.Jump
-	Settings.FlySpeed = DEFAULT.FlySpeed
-	if Humanoid then
-		Humanoid.WalkSpeed    = 16
-		Humanoid.UseJumpPower = true
-		Humanoid.JumpPower    = 50
-	end
-	SpeedButton.Text     = "SPEED  :  OFF"
-	JumpButton.Text      = "HIGH JUMP  :  OFF"
-	FlyButton.Text       = "FLY  :  OFF"
-	NoClipButton.Text    = "NOCLIP  :  OFF"
-	InvisButton.Text     = "INVISIBLE  :  OFF"
-	ESPButton.Text       = "PLAYER ESP  :  OFF"
-	MobESPButton.Text    = "MOB ESP  :  OFF"
-	FastModeButton.Text  = "ULTRA FAST  :  OFF"
-	SpeedSlider.Set(DEFAULT.Speed)
-	JumpSlider.Set(DEFAULT.Jump)
-	FlySlider.Set(DEFAULT.FlySpeed)
-end
-
-Reset.MouseButton1Click:Connect(ResetEverything)
+Corner(FastInfo,12)
+AddStroke(FastInfo,C.Stroke,1,0.45)
 
 --========================================================--
 -- TAB SYSTEM
@@ -1348,12 +1220,12 @@ Reset.MouseButton1Click:Connect(ResetEverything)
 local function SelectTab(n)
 	if n == 1 then
 		MainPage.Visible = true; FarmPage.Visible = false
-		MakeTween(Tab1, 0.15, {BackgroundColor3 = Color3.fromRGB(68,48,98)}):Play()
-		MakeTween(Tab2, 0.15, {BackgroundColor3 = C.Button}):Play()
+		MakeTween(Tab1,0.15,{BackgroundColor3=Color3.fromRGB(68,48,98)}):Play()
+		MakeTween(Tab2,0.15,{BackgroundColor3=C.Button}):Play()
 	else
 		MainPage.Visible = false; FarmPage.Visible = true
-		MakeTween(Tab1, 0.15, {BackgroundColor3 = C.Button}):Play()
-		MakeTween(Tab2, 0.15, {BackgroundColor3 = Color3.fromRGB(68,48,98)}):Play()
+		MakeTween(Tab1,0.15,{BackgroundColor3=C.Button}):Play()
+		MakeTween(Tab2,0.15,{BackgroundColor3=Color3.fromRGB(68,48,98)}):Play()
 	end
 end
 
@@ -1367,12 +1239,12 @@ Tab2.MouseButton1Click:Connect(function() SelectTab(2) end)
 local function OpenMenu()
 	MenuOpen = true; Main.Visible = true
 	Main.Size = UDim2.fromOffset(0,0)
-	MakeTween(Main, 0.3, {Size = UDim2.fromOffset(400,610)}, Enum.EasingStyle.Back):Play()
+	MakeTween(Main,0.3,{Size=UDim2.fromOffset(400,610)},Enum.EasingStyle.Back):Play()
 end
 
 local function CloseMenu()
 	MenuOpen = false
-	local a = MakeTween(Main, 0.18, {Size = UDim2.fromOffset(0,0)}, Enum.EasingStyle.Quad)
+	local a = MakeTween(Main,0.18,{Size=UDim2.fromOffset(0,0)},Enum.EasingStyle.Quad)
 	a:Play()
 	a.Completed:Once(function()
 		if not MenuOpen then Main.Visible = false end
@@ -1382,17 +1254,6 @@ end
 HubButton.MouseButton1Click:Connect(function()
 	if HubDragged then return end
 	if MenuOpen then CloseMenu() else OpenMenu() end
-end)
-
---========================================================--
--- SHOW BUTTON AFTER LOADING
---========================================================--
-
-task.delay(5, function()
-	if not HubButton.Parent then return end
-	HubButton.Visible = true
-	HubButton.BackgroundTransparency = 1
-	MakeTween(HubButton, 0.45, {BackgroundTransparency = 0}):Play()
 end)
 
 --========================================================--
@@ -1406,7 +1267,6 @@ Player.CharacterAdded:Connect(function(Char)
 		Humanoid.WalkSpeed = 16
 		Humanoid.JumpPower = 50
 	end
-	-- re-apply states sau respawn
 	if InvisEnabled then
 		table.clear(InvisBackup)
 		task.wait(0.1)
@@ -1426,4 +1286,8 @@ end)
 -- READY
 --========================================================--
 
-print("MK HUB v2.0 | FULL BUILD READY")
+Notify("MK HUB v2.0 Ready")
+task.wait(7)
+Notify("MK Yeu Em")
+
+print("MK HUB v2.0 | READY")
