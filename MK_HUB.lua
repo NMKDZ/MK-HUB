@@ -1,7 +1,7 @@
 --========================================================--
 --                    MK HUB v2.0                         --
 --                 FOX ANIME EDITION                      --
---     MAIN / TOOL — FULL BUILD (NO LOADING)              --
+--     MAIN / TOOL — FULL BUILD                           --
 --========================================================--
 
 local Players     = game:GetService("Players")
@@ -78,6 +78,7 @@ local FlyEnabled      = false
 local NoClipEnabled   = false
 local ESPEnabled      = false
 local MobESPEnabled   = false
+local ItemESPEnabled  = false
 local InvisEnabled    = false
 local FastModeEnabled = false
 
@@ -85,6 +86,7 @@ local FlyBody, FlyAtt, FlyConnection
 local NoClipConnection
 local ESPConnection
 local MobESPConnection
+local ItemESPConnection
 local SpeedConnection
 local JumpConnection
 local InvisConnection
@@ -239,7 +241,7 @@ Header.AutoButtonColor        = false
 Header.Parent                 = Main
 
 --========================================================--
--- DRAG — Main frame
+-- DRAG — Main
 --========================================================--
 
 do
@@ -268,7 +270,7 @@ do
 end
 
 --========================================================--
--- DRAG — HubButton (threshold để không conflict click)
+-- DRAG — HubButton
 --========================================================--
 
 local MenuOpen   = false
@@ -393,9 +395,6 @@ end
 
 --========================================================--
 -- MAIN BUTTONS
--- Y=10  : Speed | HighJump
--- Y=58  : Fly   | NoClip
--- Y=106 : Invisible (full width)
 --========================================================--
 
 local SpeedButton  = FeatureButton("SPEED  :  OFF",     15,  10)
@@ -418,7 +417,7 @@ Corner(InvisButton, 10)
 AddStroke(InvisButton, C.Purple, 1, 0.3)
 
 --========================================================--
--- SLIDER FACTORY (track full width, no clip issue)
+-- SLIDER FACTORY
 --========================================================--
 
 local function MakeSlider(Title, Y, Min, Max, Default, OnChanged)
@@ -520,7 +519,7 @@ local function MakeSlider(Title, Y, Min, Max, Default, OnChanged)
 end
 
 --========================================================--
--- SLIDERS  (Y: 160 / 215 / 270 — tránh đè nhau)
+-- SLIDERS
 --========================================================--
 
 local SpeedSlider = MakeSlider("SPEED",     160, 16,  200, Settings.Speed, function(v)
@@ -540,14 +539,14 @@ end)
 local function StopSpeed()
 	SpeedEnabled = false
 	if SpeedConnection then SpeedConnection:Disconnect(); SpeedConnection = nil end
-	if Humanoid then Humanoid.WalkSpeed = 16 end
+	pcall(function() if Humanoid then Humanoid.WalkSpeed = 16 end end)
 end
 
 local function StartSpeed()
 	if SpeedEnabled then return end
 	SpeedEnabled = true
 	SpeedConnection = RunService.RenderStepped:Connect(function()
-		if Humanoid then Humanoid.WalkSpeed = Settings.Speed end
+		pcall(function() if Humanoid then Humanoid.WalkSpeed = Settings.Speed end end)
 	end)
 end
 
@@ -566,20 +565,24 @@ end)
 local function StopJump()
 	JumpEnabled = false
 	if JumpConnection then JumpConnection:Disconnect(); JumpConnection = nil end
-	if Humanoid then
-		Humanoid.UseJumpPower = true
-		Humanoid.JumpPower    = 50
-	end
+	pcall(function()
+		if Humanoid then
+			Humanoid.UseJumpPower = true
+			Humanoid.JumpPower    = 50
+		end
+	end)
 end
 
 local function StartJump()
 	if JumpEnabled then return end
 	JumpEnabled = true
 	JumpConnection = RunService.RenderStepped:Connect(function()
-		if Humanoid then
-			Humanoid.UseJumpPower = true
-			Humanoid.JumpPower    = Settings.Jump
-		end
+		pcall(function()
+			if Humanoid then
+				Humanoid.UseJumpPower = true
+				Humanoid.JumpPower    = Settings.Jump
+			end
+		end)
 	end)
 end
 
@@ -598,48 +601,73 @@ end)
 local function StopFly()
 	FlyEnabled = false
 	if FlyConnection then FlyConnection:Disconnect(); FlyConnection = nil end
-	if FlyAtt  then FlyAtt:Destroy();  FlyAtt  = nil end
-	if FlyBody then FlyBody:Destroy(); FlyBody = nil end
-	if Humanoid then Humanoid.PlatformStand = false end
+	pcall(function()
+		if FlyAtt  and FlyAtt.Parent  then FlyAtt:Destroy()  end
+		if FlyBody and FlyBody.Parent then FlyBody:Destroy() end
+	end)
+	FlyAtt  = nil
+	FlyBody = nil
+	pcall(function()
+		if Humanoid then Humanoid.PlatformStand = false end
+	end)
 end
 
 local function MakeFlyBody()
-	if FlyAtt  then FlyAtt:Destroy();  FlyAtt  = nil end
-	if FlyBody then FlyBody:Destroy(); FlyBody = nil end
+	pcall(function()
+		if FlyAtt  and FlyAtt.Parent  then FlyAtt:Destroy()  end
+		if FlyBody and FlyBody.Parent then FlyBody:Destroy() end
+	end)
+	FlyAtt = nil; FlyBody = nil
+	if not Root or not Root.Parent then return end
+
 	local ok = pcall(function()
-		FlyAtt = Instance.new("Attachment")
-		FlyAtt.Name   = "MK_FlyAtt"
-		FlyAtt.Parent = Root
+		local att = Instance.new("Attachment")
+		att.Name   = "MK_FlyAtt"
+		att.Parent = Root
 		local lv = Instance.new("LinearVelocity")
 		lv.Name                   = "MK_FlyLV"
-		lv.Attachment0            = FlyAtt
+		lv.Attachment0            = att
 		lv.MaxForce               = math.huge
 		lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
 		lv.VectorVelocity         = Vector3.zero
 		lv.Parent                 = Root
+		FlyAtt  = att
 		FlyBody = lv
 	end)
-	if not ok or not FlyBody then
-		if FlyAtt then FlyAtt:Destroy(); FlyAtt = nil end
-		local bv = Instance.new("BodyVelocity")
-		bv.Name     = "MK_FlyBV"
-		bv.MaxForce = Vector3.new(math.huge,math.huge,math.huge)
-		bv.Velocity = Vector3.zero
-		bv.Parent   = Root
-		FlyBody = bv
+
+	if not ok or not FlyBody or not FlyBody.Parent then
+		pcall(function()
+			if FlyAtt and FlyAtt.Parent then FlyAtt:Destroy() end
+		end)
+		FlyAtt = nil
+		local ok2, bv = pcall(function()
+			local b = Instance.new("BodyVelocity")
+			b.Name     = "MK_FlyBV"
+			b.MaxForce = Vector3.new(1e9,1e9,1e9)
+			b.Velocity = Vector3.zero
+			b.Parent   = Root
+			return b
+		end)
+		if ok2 then FlyBody = bv end
 	end
 end
 
 local function StartFly()
-	if FlyEnabled or not Root then return end
+	if FlyEnabled or not Root or not Root.Parent then return end
 	FlyEnabled = true
-	if Humanoid then Humanoid.PlatformStand = true end
+	pcall(function()
+		if Humanoid then Humanoid.PlatformStand = true end
+	end)
 	MakeFlyBody()
 	FlyConnection = RunService.RenderStepped:Connect(function()
 		if not FlyEnabled then return end
-		if not Root or not Root.Parent then return end
-		if Humanoid then Humanoid.PlatformStand = true end
-		if not FlyBody or not FlyBody.Parent then MakeFlyBody() end
+		if not Root or not Root.Parent then StopFly(); return end
+		pcall(function()
+			if Humanoid then Humanoid.PlatformStand = true end
+		end)
+		if not FlyBody or not FlyBody.Parent then
+			MakeFlyBody(); return
+		end
 		local cam = Workspace.CurrentCamera
 		if not cam then return end
 		local dir = Vector3.zero
@@ -675,21 +703,26 @@ end)
 local function StopNoClip()
 	NoClipEnabled = false
 	if NoClipConnection then NoClipConnection:Disconnect(); NoClipConnection = nil end
-	if Character then
+	pcall(function()
+		if not Character then return end
 		for _, o in ipairs(Character:GetDescendants()) do
 			if o:IsA("BasePart") then o.CanCollide = true end
 		end
-	end
+	end)
 end
 
 local function StartNoClip()
 	if NoClipEnabled then return end
 	NoClipEnabled = true
 	NoClipConnection = RunService.Stepped:Connect(function()
-		if not Character then return end
-		for _, o in ipairs(Character:GetDescendants()) do
-			if o:IsA("BasePart") then o.CanCollide = false end
-		end
+		pcall(function()
+			if not Character or not Character.Parent then return end
+			for _, o in ipairs(Character:GetDescendants()) do
+				if o:IsA("BasePart") then
+					o.CanCollide = false
+				end
+			end
+		end)
 	end)
 end
 
@@ -775,30 +808,6 @@ Teleport.MouseButton1Click:Connect(function()
 	end
 end)
 
-local function ResetEverything()
-	StopFly(); StopNoClip(); StopSpeed(); StopJump(); StopInvis()
-	SpeedEnabled = false; JumpEnabled = false; FlyEnabled = false
-	NoClipEnabled = false; InvisEnabled = false
-	Settings.Speed    = DEFAULT.Speed
-	Settings.Jump     = DEFAULT.Jump
-	Settings.FlySpeed = DEFAULT.FlySpeed
-	if Humanoid then
-		Humanoid.WalkSpeed    = 16
-		Humanoid.UseJumpPower = true
-		Humanoid.JumpPower    = 50
-	end
-	SpeedButton.Text  = "SPEED  :  OFF"
-	JumpButton.Text   = "HIGH JUMP  :  OFF"
-	FlyButton.Text    = "FLY  :  OFF"
-	NoClipButton.Text = "NOCLIP  :  OFF"
-	InvisButton.Text  = "INVISIBLE  :  OFF"
-	SpeedSlider.Set(DEFAULT.Speed)
-	JumpSlider.Set(DEFAULT.Jump)
-	FlySlider.Set(DEFAULT.FlySpeed)
-end
-
-Reset.MouseButton1Click:Connect(ResetEverything)
-
 --========================================================--
 -- TOOL PAGE
 --========================================================--
@@ -822,9 +831,12 @@ FarmLine.BackgroundTransparency = 0.35
 FarmLine.BorderSizePixel        = 0
 FarmLine.Parent                 = FarmPage
 
-local ESPButton     = FeatureButton("PLAYER ESP  :  OFF", 15,  65, FarmPage)
-local MobESPButton  = FeatureButton("MOB ESP  :  OFF",    205, 65, FarmPage)
-local FastModeButton= FeatureButton("ULTRA FAST  :  OFF", 205, 125, FarmPage)
+-- Row 1 Y=65 : Player ESP | Mob ESP
+-- Row 2 Y=115: Item ESP   | Ultra Fast
+local ESPButton      = FeatureButton("PLAYER ESP  :  OFF", 15,  65,  FarmPage)
+local MobESPButton   = FeatureButton("MOB ESP  :  OFF",    205, 65,  FarmPage)
+local ItemESPButton  = FeatureButton("ITEM ESP  :  OFF",   15,  115, FarmPage)
+local FastModeButton = FeatureButton("ULTRA FAST  :  OFF", 205, 115, FarmPage)
 
 --========================================================--
 -- PLAYER ESP
@@ -891,7 +903,7 @@ local function CreatePlayerESP(PlrObj)
 	dl.Font                   = Enum.Font.Gotham
 	dl.Parent                 = bb
 
-	ESPObjects[PlrObj] = { Highlight = hl, Billboard = bb, Distance = dl }
+	ESPObjects[PlrObj] = { Highlight=hl, Billboard=bb, Distance=dl }
 end
 
 local function UpdatePlayerESP()
@@ -1092,10 +1104,160 @@ MobESPButton.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
+-- ITEM ESP
+--========================================================--
+
+local ItemESPData  = {}
+local ITEM_FILL    = Color3.fromRGB(80,255,180)
+local ITEM_OUTLINE = Color3.fromRGB(255,255,100)
+
+local function RemoveItemESP(prompt)
+	local d = ItemESPData[prompt]
+	if not d then return end
+	if d.Highlight then d.Highlight:Destroy() end
+	if d.Billboard then d.Billboard:Destroy() end
+	ItemESPData[prompt] = nil
+end
+
+local function CreateItemESP(prompt)
+	if not ItemESPEnabled then return end
+	if not prompt or not prompt.Parent then return end
+	if ItemESPData[prompt] then return end
+
+	local obj = prompt.Parent
+	if not obj then return end
+
+	-- leo lên model nếu prompt nằm trong part con
+	local root = obj
+	if obj:IsA("BasePart") and obj.Parent and obj.Parent:IsA("Model") then
+		root = obj.Parent
+	end
+
+	local anchor = root:FindFirstChild("Head")
+		or root:FindFirstChildWhichIsA("BasePart")
+		or (root:IsA("BasePart") and root or nil)
+
+	if not anchor then return end
+
+	local hl = Instance.new("Highlight")
+	hl.Name                = "MK_ESP_Item"
+	hl.Adornee             = root
+	hl.FillColor           = ITEM_FILL
+	hl.OutlineColor        = ITEM_OUTLINE
+	hl.FillTransparency    = 0.5
+	hl.OutlineTransparency = 0
+	hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
+	hl.Parent              = root
+
+	local bb = Instance.new("BillboardGui")
+	bb.Name        = "MK_ESP_ItemName"
+	bb.Adornee     = anchor
+	bb.Size        = UDim2.fromOffset(180,42)
+	bb.StudsOffset = Vector3.new(0,3.5,0)
+	bb.AlwaysOnTop = true
+	bb.MaxDistance = 300
+	bb.Parent      = anchor
+
+	local displayName = ""
+	if prompt.ActionText ~= "" then
+		displayName = prompt.ActionText
+	elseif prompt.ObjectText ~= "" then
+		displayName = prompt.ObjectText
+	else
+		displayName = root.Name
+	end
+
+	local nl = Instance.new("TextLabel")
+	nl.Size                   = UDim2.fromScale(1,0.6)
+	nl.BackgroundTransparency = 1
+	nl.Text                   = displayName
+	nl.TextColor3             = ITEM_OUTLINE
+	nl.TextStrokeTransparency = 0
+	nl.TextStrokeColor3       = Color3.fromRGB(0,0,0)
+	nl.TextSize               = 12
+	nl.Font                   = Enum.Font.GothamBold
+	nl.TextWrapped            = true
+	nl.Parent                 = bb
+
+	local dl = Instance.new("TextLabel")
+	dl.Size                   = UDim2.fromScale(1,0.4)
+	dl.Position               = UDim2.fromScale(0,0.6)
+	dl.BackgroundTransparency = 1
+	dl.Text                   = "0 studs"
+	dl.TextColor3             = Color3.fromRGB(180,255,220)
+	dl.TextStrokeTransparency = 0
+	dl.TextStrokeColor3       = Color3.fromRGB(0,0,0)
+	dl.TextSize               = 10
+	dl.Font                   = Enum.Font.Gotham
+	dl.Parent                 = bb
+
+	ItemESPData[prompt] = { Highlight=hl, Billboard=bb, Distance=dl, Anchor=anchor }
+end
+
+local function ScanItems()
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("ProximityPrompt") then
+			CreateItemESP(obj)
+		end
+	end
+end
+
+local function StopItemESP()
+	ItemESPEnabled = false
+	if ItemESPConnection then ItemESPConnection:Disconnect(); ItemESPConnection = nil end
+	for prompt in pairs(ItemESPData) do RemoveItemESP(prompt) end
+	table.clear(ItemESPData)
+end
+
+local function StartItemESP()
+	if ItemESPEnabled then return end
+	ItemESPEnabled = true
+	ScanItems()
+	ItemESPConnection = Workspace.DescendantAdded:Connect(function(obj)
+		if obj:IsA("ProximityPrompt") then
+			task.delay(0.3, function()
+				if ItemESPEnabled then CreateItemESP(obj) end
+			end)
+		end
+	end)
+	Workspace.DescendantRemoving:Connect(function(obj)
+		if obj:IsA("ProximityPrompt") then
+			RemoveItemESP(obj)
+		end
+	end)
+end
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		if ItemESPEnabled and Root then
+			for prompt, d in pairs(ItemESPData) do
+				local anchor = d.Anchor
+				if anchor and anchor.Parent and d.Distance then
+					d.Distance.Text = math.floor(
+						(Root.Position - anchor.Position).Magnitude
+					).." studs"
+				elseif not anchor or not anchor.Parent then
+					RemoveItemESP(prompt)
+				end
+			end
+		end
+	end
+end)
+
+ItemESPButton.MouseButton1Click:Connect(function()
+	if ItemESPEnabled then
+		StopItemESP(); ItemESPButton.Text = "ITEM ESP  :  OFF"
+	else
+		StartItemESP(); ItemESPButton.Text = "ITEM ESP  :  ON"
+	end
+end)
+
+--========================================================--
 -- ULTRA FAST MODE
 --========================================================--
 
-local FastBackup = { Properties = {}, Lighting = {} }
+local FastBackup = { Properties={}, Lighting={} }
 local FastConns  = {}
 local OrigTerrainDec
 
@@ -1198,12 +1360,12 @@ FastModeButton.MouseButton1Click:Connect(function()
 end)
 
 local FastInfo = Instance.new("TextLabel")
-FastInfo.Size                   = UDim2.new(1,-30,0,65)
-FastInfo.Position               = UDim2.fromOffset(15,175)
+FastInfo.Size                   = UDim2.new(1,-30,0,55)
+FastInfo.Position               = UDim2.fromOffset(15,165)
 FastInfo.BackgroundColor3       = C.Button
 FastInfo.BackgroundTransparency = 0.2
 FastInfo.BorderSizePixel        = 0
-FastInfo.Text                   = "ULTRA FAST MODE\nGiảm particle • texture • decal • beam\ntrail • light • shadow • material"
+FastInfo.Text                   = "ULTRA FAST MODE\nGiảm particle • texture • decal • beam • trail • light • shadow • material"
 FastInfo.TextColor3             = C.Gray
 FastInfo.TextSize               = 10
 FastInfo.Font                   = Enum.Font.GothamBold
@@ -1212,6 +1374,41 @@ FastInfo.TextYAlignment         = Enum.TextYAlignment.Center
 FastInfo.Parent                 = FarmPage
 Corner(FastInfo,12)
 AddStroke(FastInfo,C.Stroke,1,0.45)
+
+--========================================================--
+-- RESET
+--========================================================--
+
+local function ResetEverything()
+	StopFly(); StopNoClip(); StopSpeed(); StopJump(); StopInvis()
+	StopESP(); StopMobESP(); StopItemESP()
+	if FastModeEnabled then StopFastMode() end
+	SpeedEnabled = false; JumpEnabled = false; FlyEnabled = false
+	NoClipEnabled = false; InvisEnabled = false
+	ESPEnabled = false; MobESPEnabled = false; ItemESPEnabled = false
+	Settings.Speed    = DEFAULT.Speed
+	Settings.Jump     = DEFAULT.Jump
+	Settings.FlySpeed = DEFAULT.FlySpeed
+	if Humanoid then
+		Humanoid.WalkSpeed    = 16
+		Humanoid.UseJumpPower = true
+		Humanoid.JumpPower    = 50
+	end
+	SpeedButton.Text     = "SPEED  :  OFF"
+	JumpButton.Text      = "HIGH JUMP  :  OFF"
+	FlyButton.Text       = "FLY  :  OFF"
+	NoClipButton.Text    = "NOCLIP  :  OFF"
+	InvisButton.Text     = "INVISIBLE  :  OFF"
+	ESPButton.Text       = "PLAYER ESP  :  OFF"
+	MobESPButton.Text    = "MOB ESP  :  OFF"
+	ItemESPButton.Text   = "ITEM ESP  :  OFF"
+	FastModeButton.Text  = "ULTRA FAST  :  OFF"
+	SpeedSlider.Set(DEFAULT.Speed)
+	JumpSlider.Set(DEFAULT.Jump)
+	FlySlider.Set(DEFAULT.FlySpeed)
+end
+
+Reset.MouseButton1Click:Connect(ResetEverything)
 
 --========================================================--
 -- TAB SYSTEM
